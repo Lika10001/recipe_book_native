@@ -13,6 +13,7 @@ import { useUser } from '../context/UserContext';
 import { supabase } from '../supabaseClient';
 import EditIcon from '../icons/EditIcon.js';
 import {borderRadius} from "styled-system";
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function ProfileScreen({ navigation }) {
     const { user } = useUser();
@@ -34,25 +35,46 @@ export default function ProfileScreen({ navigation }) {
     };
 
     const fetchFavoriteRecipes = async () => {
+        console.log('Fetching favorite recipes for user:', user.id);
         const { data, error } = await supabase
             .from('favorites')
             .select('recipe_id')
             .eq('user_id', user.id);
 
         if (error) {
-            console.error(error);
+            console.error('Error fetching favorites:', error);
             return;
         }
 
+        console.log('Favorites data:', data);
         const ids = data.map(item => item.recipe_id);
         if (ids.length > 0) {
-            const { data: recipes } = await supabase
+            const { data: recipes, error: recipesError } = await supabase
                 .from('recipes')
                 .select('*')
                 .in('id', ids);
+
+            if (recipesError) {
+                console.error('Error fetching recipes:', recipesError);
+                return;
+            }
+
+            console.log('Fetched recipes:', recipes);
             setFavoriteRecipes(recipes || []);
+        } else {
+            setFavoriteRecipes([]);
         }
     };
+
+    // Обновляем список при фокусе экрана
+    useFocusEffect(
+        React.useCallback(() => {
+            console.log('Profile screen focused, updating lists...');
+            fetchFavoriteRecipes();
+            fetchOwnRecipes();
+        }, [user])
+    );
+
     const handleFavoritePress = (recipeId) => {
         navigation.navigate('RecipeDetails', { recipeId });
     };
@@ -112,11 +134,6 @@ export default function ProfileScreen({ navigation }) {
         </View>
     );
 
-    useEffect(() => {
-        fetchFavoriteRecipes();
-        fetchOwnRecipes();
-    }, [user]);
-
     return (
         <View style={styles.container}>
             <StatusBar barStyle="dark-content" />
@@ -130,9 +147,16 @@ export default function ProfileScreen({ navigation }) {
 
                 <View style={styles.profileRow}>
                     <View style={styles.avatarContainer}>
-                        <Text style={styles.avatarText}>
-                            {user.username?.[0]?.toUpperCase() || 'U'}
-                        </Text>
+                        {user.avatar ? (
+                            <Image 
+                                source={{ uri: user.avatar }} 
+                                style={styles.avatarImage}
+                            />
+                        ) : (
+                            <Text style={styles.avatarText}>
+                                {user.username?.[0]?.toUpperCase() || 'U'}
+                            </Text>
+                        )}
                     </View>
                     <View style={styles.infoContainer}>
                         <Text style={styles.username}>{user.username || 'User Name'}</Text>
@@ -215,7 +239,13 @@ const styles = StyleSheet.create({
         backgroundColor: '#4c60ff',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 15
+        marginRight: 15,
+        overflow: 'hidden'
+    },
+    avatarImage: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover'
     },
     avatarText: {
         fontSize: 26,

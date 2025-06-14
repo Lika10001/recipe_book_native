@@ -1,23 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRoute } from '@react-navigation/native';
-import { View, ScrollView, StyleSheet } from 'react-native';
-import { TextInput, Button, Text, Chip } from 'react-native-paper';
 import { supabase } from '../../supabaseClient';
+import RecipeForm from './RecipeForm';
+import { Alert } from 'react-native';
 
-const EditOwnRecipeScreen = () => {
+const EditOwnRecipeScreen = ({ navigation }) => {
     const route = useRoute();
     const { recipeId } = route.params;
-
+    const [initialData, setInitialData] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [title, setTitle] = useState('');
-    const [description, setDescription] = useState('');
-    const [ingredients, setIngredients] = useState('');
-    const [steps, setSteps] = useState(['']);
-    const [servings, setServings] = useState(2);
-    const [tips, setTips] = useState('');
-    const [difficulty, setDifficulty] = useState('');
-    const [time, setTime] = useState(0);
-    const [occasion, setOccasion] = useState('');
 
     useEffect(() => {
         const fetchRecipe = async () => {
@@ -28,17 +19,10 @@ const EditOwnRecipeScreen = () => {
                 .single();
 
             if (error) {
-                console.error(error);
+                console.error('Error fetching recipe:', error);
+                alert('Error loading recipe: ' + error.message);
             } else if (data) {
-                setTitle(data.title);
-                setDescription(data.description || '');
-                setIngredients(data.ingredients?.join(', ') || '');
-                setSteps(data.steps || ['']);
-                setServings(data.servings || 2);
-                setTips(data.tips || '');
-                setDifficulty(data.difficulty || '');
-                setTime(data.cooking_time || 0);
-                setOccasion(data.occasion || '');
+                setInitialData(data);
             }
             setLoading(false);
         };
@@ -46,55 +30,41 @@ const EditOwnRecipeScreen = () => {
         fetchRecipe();
     }, [recipeId]);
 
-    const handleSave = async () => {
+    const handleSave = async (recipeData) => {
         const { error } = await supabase
             .from('users_own_recipes')
-            .update({
-                title,
-                description,
-                servings,
-                ingredients: ingredients.split(',').map((i) => i.trim()),
-                steps,
-                tips,
-                difficulty,
-                cooking_time: time,
-                occasion
-            })
+            .update(recipeData)
             .eq('id', recipeId);
 
         if (error) {
-            alert('Error updating recipe');
-            console.error(error);
+            console.error('Update error:', error);
+            alert('Error updating recipe: ' + error.message);
         } else {
-            alert('Recipe updated!');
+            Alert.alert('Success', 'Recipe updated successfully');
+            navigation.reset({
+                index: 0,
+                routes: [
+                    {
+                        name: 'AppTabs',
+                        params: {
+                            initialRouteName: 'Profile'
+                        }
+                    },
+                    {
+                        name: 'OwnRecipeDetails',
+                        params: { recipeId: recipeId }
+                    }
+                ],
+            });
         }
     };
 
-    if (loading) return <Text>Loading...</Text>;
+    if (loading) {
+        return null; // или можно показать индикатор загрузки
+    }
 
-    return (
-        <ScrollView contentContainerStyle={styles.container}>
-            <TextInput label="Title" value={title} onChangeText={setTitle} style={styles.input} />
-            <TextInput label="Description" value={description} onChangeText={setDescription} style={styles.input} />
-            {/* остальные поля такие же как в AddOwnRecipe */}
-            <TextInput
-                label="Ingredients"
-                value={ingredients}
-                onChangeText={setIngredients}
-                style={styles.input}
-            />
-            {/* аналогично для steps, tips, difficulty, etc. */}
-            <Button mode="contained" style={styles.saveButton} onPress={handleSave}>
-                Save Changes
-            </Button>
-        </ScrollView>
-    );
+    return <RecipeForm recipeId={recipeId} initialData={initialData} onSave={handleSave} />;
 };
 
-const styles = StyleSheet.create({
-    container: { padding: 16 },
-    input: { marginVertical: 8 },
-    saveButton: { marginTop: 24 },
-});
-
 export default EditOwnRecipeScreen;
+

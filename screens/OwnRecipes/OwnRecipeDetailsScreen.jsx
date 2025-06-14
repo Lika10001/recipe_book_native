@@ -40,6 +40,8 @@ const OwnRecipeDetailsScreen = ({route}) => {
 
     return (
         <ScrollView contentContainerStyle={styles.container}>
+           
+
             {recipe.image_url && (
                 <Image source={{ uri: recipe.image_url }} style={styles.image} />
             )}
@@ -76,7 +78,17 @@ const OwnRecipeDetailsScreen = ({route}) => {
             )}
 
             {/* Edit */}
-            <Button icon="pencil" mode="outlined" style={{ marginTop: 24 }} onPress={() => {navigation.navigate("EditOwnRecipe", {recipe: recipe})}}>Edit</Button>
+            <Button icon="pencil" mode="outlined" style={{ marginTop: 24 }} onPress={() => {navigation.navigate("EditOwnRecipe", {recipeId: recipe.id})}}>Edit</Button>
+            <Button 
+                icon="arrow-left" 
+                mode="outlined" 
+                onPress={() => navigation.navigate('AppTabs', {
+                    initialRouteName: 'Profile'
+                })}
+                style={styles.backButton}
+            >
+                Back
+            </Button>
         </ScrollView>
     );
 };
@@ -85,6 +97,10 @@ const styles = StyleSheet.create({
     container: {
         padding: 16,
         paddingBottom: 50,
+    },
+    backButton: {
+        marginBottom: 16,
+        marginTop: 16,
     },
     image: {
         width: '100%',

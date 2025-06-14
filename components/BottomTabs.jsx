@@ -9,9 +9,13 @@ import FoodDiary from "../screens/FoodDiary";
 
 const Tab = createBottomTabNavigator();
 
-const BottomTabs = () => {
+const BottomTabs = ({ route }) => {
+    // Получаем начальный экран из параметров, если он есть
+    const initialRouteName = route?.params?.initialRouteName || 'Cook';
+
     return (
         <Tab.Navigator
+            initialRouteName={initialRouteName}
             screenOptions={({ route }) => ({
                 tabBarIcon: ({ color, size }) => {
                     let iconName;

@@ -16,6 +16,9 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
+import { supabase } from '../supabaseClient';
+import { useUser } from '../context/UserContext';
+import { useNavigation } from '@react-navigation/native';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -81,6 +84,7 @@ const AuthStatus = ({ accessToken, onPress }) => {
 };
 
 export default function PlanScreen() {
+    const { user } = useUser();
     const [selectedDay, setSelectedDay] = useState(9);
     const [modalVisible, setModalVisible] = useState(false);
 
@@ -122,8 +126,55 @@ export default function PlanScreen() {
         useProxy: Platform.OS !== 'web',
     });
 
+    const [cartItems, setCartItems] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [cartItems, setCartItems] = useState(dummyCart); // Replace with your actual cart state
+
+    const navigation = useNavigation();
+
+    const fetchCartItems = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('ingredient_cart')
+                .select(`
+                    ingredient_id,
+                    quantity,
+                    ingredients:ingredient_id (
+                        id,
+                        name,
+                        image_url,
+                        unit
+                    )
+                `)
+                .eq('user_id', user.id);
+
+            if (error) {
+                console.error('Error fetching cart:', error);
+                return;
+            }
+
+            console.log('Cart items:', data); // Добавим для отладки
+            setCartItems(data || []);
+        } catch (err) {
+            console.error('Error in fetchCartItems:', err);
+        }
+    };
+
+    useEffect(() => {
+        if (user?.id) {
+            fetchCartItems();
+        }
+    }, [user]);
+
+    // Добавим обновление корзины при фокусе на экране
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('focus', () => {
+            if (user?.id) {
+                fetchCartItems();
+            }
+        });
+
+        return unsubscribe;
+    }, [navigation, user]);
 
     useEffect(() => {
         if (response?.type === 'success') {
@@ -175,7 +226,10 @@ export default function PlanScreen() {
 
     // Create shopping event from cart
     const createShoppingEventFromCart = () => {
-        const cartItemsList = cartItems.map(item => `${item.name} (${item.qty})`).join('\n');
+        const cartItemsList = cartItems.map(item => 
+            `${item.ingredients.name} (${item.quantity} ${item.ingredients.unit})`
+        ).join('\n');
+        
         setEventDetails(prev => ({
             ...prev,
             title: 'Shopping List',
@@ -364,6 +418,32 @@ export default function PlanScreen() {
             );
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleRemoveFromCart = async (ingredientId) => {
+        try {
+            const { error } = await supabase
+                .from('ingredient_cart')
+                .delete()
+                .match({ 
+                    user_id: user.id,
+                    ingredient_id: ingredientId
+                });
+            
+            if (error) {
+                console.error('Error removing item from cart:', error);
+                Alert.alert('Ошибка', 'Не удалось удалить ингредиент из корзины');
+                return;
+            }
+
+            // Обновляем список после удаления
+            setCartItems(prev => 
+                prev.filter(item => item.ingredient_id !== ingredientId)
+            );
+        } catch (err) {
+            console.error('Error in handleRemoveFromCart:', err);
+            Alert.alert('Ошибка', 'Произошла ошибка при удалении ингредиента');
         }
     };
 
@@ -578,17 +658,20 @@ export default function PlanScreen() {
                         <Text style={styles.modalTitle}>Your Shopping List</Text>
                         <ScrollView style={styles.cartScrollView}>
                             {cartItems.map((item) => (
-                                <View key={item.id} style={styles.cartItem}>
+                                <View key={item.ingredient_id} style={styles.cartItem}>
+                                    <Image 
+                                        source={{ uri: item.ingredients.image_url }} 
+                                        style={styles.cartItemImage}
+                                    />
                                     <View style={styles.cartItemInfo}>
-                                        <Text style={styles.cartItemName}>{item.name}</Text>
-                                        <Text style={styles.cartItemQty}>Qty: {item.qty}</Text>
+                                        <Text style={styles.cartItemName}>{item.ingredients.name}</Text>
+                                        <Text style={styles.cartItemQty}>
+                                            {item.quantity} {item.ingredients.unit}
+                                        </Text>
                                     </View>
                                     <TouchableOpacity 
-                                        onPress={() => {
-                                            setCartItems(prev => 
-                                                prev.filter(i => i.id !== item.id)
-                                            );
-                                        }}
+                                        onPress={() => handleRemoveFromCart(item.ingredient_id)}
+                                        style={styles.removeButton}
                                     >
                                         <Ionicons name="trash-outline" size={20} color="#666" />
                                     </TouchableOpacity>
@@ -599,6 +682,7 @@ export default function PlanScreen() {
                             <TouchableOpacity
                                 style={[styles.btn, { backgroundColor: '#4CAF50' }]}
                                 onPress={createShoppingEventFromCart}
+                                disabled={cartItems.length === 0}
                             >
                                 <Text style={styles.btnText}>Create Shopping Event</Text>
                             </TouchableOpacity>
@@ -693,10 +777,38 @@ const styles = StyleSheet.create({
 
     cartItem: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        alignItems: 'center',
         paddingVertical: 8,
         borderBottomWidth: 1,
         borderBottomColor: '#ddd',
+    },
+    cartItemImage: {
+        width: 40,
+        height: 40,
+        borderRadius: 8,
+        marginRight: 12,
+    },
+    cartItemInfo: {
+        flex: 1,
+    },
+    cartItemName: {
+        fontSize: 16,
+        fontWeight: '500',
+    },
+    cartItemQty: {
+        fontSize: 14,
+        color: '#666',
+    },
+    cartItemRecipe: {
+        fontSize: 12,
+        color: '#666',
+    },
+    cartActions: {
+        marginTop: 16,
+        gap: 8,
+    },
+    disabledButton: {
+        opacity: 0.7,
     },
     headerActions: {
         flexDirection: 'row',
@@ -771,22 +883,8 @@ const styles = StyleSheet.create({
     cartScrollView: {
         maxHeight: 250,
     },
-    cartItemInfo: {
-        flex: 1,
-    },
-    cartItemName: {
-        fontSize: 16,
-        fontWeight: '500',
-    },
-    cartItemQty: {
-        fontSize: 14,
-        color: '#666',
-    },
-    cartActions: {
-        marginTop: 16,
-        gap: 8,
-    },
-    disabledButton: {
-        opacity: 0.7,
+    removeButton: {
+        padding: 8,
+        marginLeft: 8,
     },
 });

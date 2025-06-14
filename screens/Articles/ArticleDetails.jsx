@@ -13,8 +13,8 @@ export default function ArticleDetail({ route }) {
     const [reviewText, setReviewText] = useState('');
     const [reviews, setReviews] = useState([
 
-        { userId: 'user1', username: 'Анна', avatar: null, rating: 5, text: 'Отличная статья, очень полезно!' },
-        { userId: 'user2', username: 'Иван', avatar: null, rating: 4, text: 'Интересно, но хотелось бы больше деталей.' },
+        { userId: 'user1', username: 'Ann', avatar: null, rating: 5, text: 'Excellent article, very useful!' },
+        { userId: 'user2', username: 'Ivan', avatar: null, rating: 4, text: 'Interesting, but I would like more details.' },
     ]);
 
     const handleRating = (selectedRating) => {
@@ -54,7 +54,10 @@ export default function ArticleDetail({ route }) {
         const stars = [];
         for (let i = 1; i <= 5; i++) {
             stars.push(
-                <TouchableOpacity key={i} onPress={() => handleRating(i)}>
+                <TouchableOpacity 
+                    key={`star-${i}-${currentRating}`} 
+                    onPress={() => handleRating(i)}
+                >
                     <FontAwesome
                         name={i <= currentRating ? 'star' : 'star-o'}
                         size={24}
@@ -118,7 +121,7 @@ export default function ArticleDetail({ route }) {
                     {renderStars(rating)}
                     <TextInput
                         style={styles.reviewInput}
-                        placeholder="Ваш отзыв..."
+                        placeholder="Your review..."
                         multiline
                         value={reviewText}
                         onChangeText={setReviewText}

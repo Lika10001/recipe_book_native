@@ -7,6 +7,7 @@ import {
     Image,
     ActivityIndicator,
     TouchableOpacity, FlatList,
+    TextInput,
 } from 'react-native';
 import {Button, Card, Chip} from 'react-native-paper';
 import { supabase } from '../supabaseClient';
@@ -22,101 +23,272 @@ export default function RecipeDetails({ route }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isFavorite, setIsFavorite] = useState(false);
-    const user = useUser();
+    const [bookmarksCount, setBookmarksCount] = useState(0);
+    const { user } = useUser();
+    const [selectedQuantity, setSelectedQuantity] = useState({});
+
+    console.log('Full user object:', user);
+
+    useEffect(() => {
+        console.log('User data in RecipeDetails:', user);
+        console.log('User ID:', user?.id);
+        console.log('User user ID:', user?.user?.id);
+    }, [user]);
+
+    useEffect(() => {
+        async function checkTables() {
+            // Проверяем таблицу recipes
+            const { data: recipesData, error: recipesError } = await supabase
+                .from('recipes')
+                .select('*')
+                .limit(1);
+            console.log('Recipes table structure:', recipesData);
+
+            // Проверяем таблицу ingredients
+            const { data: ingredientsData, error: ingredientsError } = await supabase
+                .from('ingredients')
+                .select('*');
+
+            // Проверяем таблицу recipes_ingredients
+            const { data: recipesIngredientsData, error: recipesIngredientsError } = await supabase
+                .from('recipes_ingredients')
+                .select('*');
+        }
+
+        checkTables();
+    }, []);
+
+    const updateRecipeRating = async () => {
+        const { data: reviewsData, error: reviewsError } = await supabase
+            .from('reviews_recipes')
+            .select('rating')
+            .eq('recipe_id', recipeId);
+
+        if (reviewsError) {
+            console.error('Error fetching reviews:', reviewsError);
+            return;
+        }
+
+        if (reviewsData.length > 0) {
+            const averageRating = reviewsData.reduce((acc, curr) => acc + curr.rating, 0) / reviewsData.length;
+            
+            const { error: updateError } = await supabase
+                .from('recipes')
+                .update({ rating: averageRating })
+                .eq('id', recipeId);
+
+            if (updateError) {
+                console.error('Error updating recipe rating:', updateError);
+            } else {
+                setRecipe(prev => ({ ...prev, rating: averageRating }));
+            }
+        }
+    };
+
+    const updateBookmarksCount = async () => {
+        const { data, error } = await supabase
+            .from('favorites')
+            .select('user_id')
+            .eq('recipe_id', recipeId);
+
+        if (error) {
+            console.error('Error fetching bookmarks:', error);
+            return;
+        }
+
+        setBookmarksCount(data.length);
+    };
 
     useEffect(() => {
         async function fetchData() {
             try {
                 setLoading(true);
+                console.log('Fetching data for recipe:', recipeId);
+                console.log('Current user:', user);
+                
                 const [recipeRes, ingredientsRes, favoriteRes] = await Promise.all([
                     supabase.from('recipes').select('*').eq('id', recipeId).single(),
                     supabase.from('recipes_ingredients')
-                        .select('ingredient:ingredient_id(*)')
+                        .select(`
+                            quantity,
+                            ingredients:ingredient_id (
+                                id,
+                                name,
+                                image_url,
+                                calories,
+                                category,
+                                unit
+                            )
+                        `)
                         .eq('recipe_id', recipeId),
-                    supabase.from('favorites').select('*').eq('user_id', user.id).eq('recipe_id', recipeId),
+                    supabase.from('favorites').select('*').eq('user_id', user?.id).eq('recipe_id', recipeId),
                 ]);
 
-                console.log('recipe data ', ingredientsRes);
+                console.log('Favorite response:', favoriteRes);
+
                 if (recipeRes.error) throw recipeRes.error;
                 if (ingredientsRes.error) throw ingredientsRes.error;
 
                 setRecipe(recipeRes.data);
-                setIngredients(ingredientsRes.data.map(item => item.ingredient));
-
                 if (ingredientsRes.data?.length) {
-                    setIngredients(ingredientsRes.data.map(item => item.ingredient));
+                    const mappedIngredients = ingredientsRes.data.map(item => ({
+                        ...item.ingredients,
+                        quantity: item.quantity
+                    }));
+                    setIngredients(mappedIngredients);
                 }
+
+                // Проверяем избранное
                 if (favoriteRes.data) {
-                    const favoriteRecipeIds = favoriteRes.data.map(item => item.recipe_id);
-                    setIsFavorite(favoriteRecipeIds.includes(recipeId));
+                    console.log('Favorite data:', favoriteRes.data);
+                    const isRecipeFavorite = favoriteRes.data.length > 0;
+                    console.log('Is recipe favorite:', isRecipeFavorite);
+                    setIsFavorite(isRecipeFavorite);
+                } else {
+                    console.log('No favorite data found');
+                    setIsFavorite(false);
                 }
+
+                // Получаем количество закладок
+                await updateBookmarksCount();
             } catch (err) {
+                console.error('Error in fetchData:', err);
                 setError(err.message);
             } finally {
                 setLoading(false);
             }
         }
 
-        const checkIfFavorite = async () => {
-            if (!user?.user?.id) return;
-
-            const { data: userData, error: userError } = await supabase
-                .from("favorites")
-                .select("user_id")
-                .eq("user_id", user.user.id)
-                .maybeSingle();
-
-            if (userError || !userData) return;
-
-            const { data: favoriteData, error: favoriteError } = await supabase
-                .from("favorites")
-                .select("*")
-                .eq("user_id", user.user.id)
-                .eq("recipe_id", recipeId)
-                .maybeSingle();
-
-            if (favoriteError) return;
-
-            setIsFavorite(!!favoriteData);
-        };
-
-        checkIfFavorite();
-        if (recipeId && user) fetchData();
+        if (recipeId && user?.id) {
+            console.log('Starting fetchData with recipeId:', recipeId, 'and user:', user);
+            fetchData();
+        } else {
+            console.log('Missing recipeId or user:', { recipeId, user });
+        }
     }, [recipeId, user]);
 
-    const handleAddToCart = async (ingredientId) => {
-        const { data, error } = await supabase
-            .from('ingredients_cart')
-            .insert([{ user_id: user.id, ingredient_id: ingredientId }]);
+    useEffect(() => {
+        async function addIngredients() {
+            const ingredients = [
+                { ingredient_id: "123e4567-e89b-12d3-a456-426614174015", quantity: 2 }, // Egg
+                { ingredient_id: "123e4567-e89b-12d3-a456-426614174016", quantity: 100 }, // Cheese
+                { ingredient_id: "123e4567-e89b-12d3-a456-426614174037", quantity: 1 }, // Pepper
+                { ingredient_id: "123e4567-e89b-12d3-a456-426614174038", quantity: 200 }, // Pasta
+                { ingredient_id: "123e4567-e89b-12d3-a456-426614174036", quantity: 1 }, // Salt
+            ];
 
-        if (error) {
-            console.error('Ошибка добавления в корзину:', error);
+            const { data, error } = await supabase
+                .from('recipes_ingredients')
+                .insert(
+                    ingredients.map(ing => ({
+                        ...ing,
+                        recipe_id: recipeId
+                    }))
+                );
+
+            if (error) {
+                console.error('Error adding ingredients:', error);
+            } else {
+                console.log('Ingredients added successfully');
+                // Перезагружаем данные после добавления
+                fetchData();
+            }
+        }
+
+        // Проверяем, есть ли уже ингредиенты для этого рецепта
+        const checkIngredients = async () => {
+            const { data, error } = await supabase
+                .from('recipes_ingredients')
+                .select('*')
+                .eq('recipe_id', recipeId);
+
+            if (error) {
+                console.error('Error checking ingredients:', error);
+                return;
+            }
+
+            if (!data || data.length === 0) {
+                // Если ингредиентов нет, добавляем их
+                await addIngredients();
+            }
+        };
+
+        checkIngredients();
+    }, [recipeId]);
+
+    const handleAddToCart = async (ingredient) => {
+        if (!user?.id) {
+            alert('Войдите в систему');
+            return;
+        }
+
+        const quantity = selectedQuantity[ingredient.id] || ingredient.quantity || 1;
+
+        try {
+            console.log('Adding to cart:', { 
+                user_id: user.id, 
+                ingredient_id: ingredient.id,
+                quantity: quantity 
+            });
+
+            const { data, error } = await supabase
+                .from('ingredient_cart')
+                .insert([{ 
+                    user_id: user.id, 
+                    ingredient_id: ingredient.id,
+                    quantity: quantity
+                }]);
+
+            if (error) {
+                console.error('Ошибка добавления в корзину:', error);
+                alert('Не удалось добавить в корзину');
+                return;
+            }
+
+            alert('Добавлено в корзину');
+            setSelectedQuantity(prev => ({ ...prev, [ingredient.id]: undefined }));
+        } catch (err) {
+            console.error('Ошибка при добавлении в корзину:', err);
+            alert('Произошла ошибка');
+        }
+    };
+
+    const handleQuantityChange = (ingredientId, value) => {
+        const numValue = parseInt(value) || 0;
+        if (numValue > 0) {
+            setSelectedQuantity(prev => ({ ...prev, [ingredientId]: numValue }));
         }
     };
 
     const handleFavorite = async () => {
-        if (!user) {
+        if (!user?.id) {
             alert('Войдите в систему');
             return;
         }
 
         try {
+            console.log('Handling favorite for recipe:', recipeId);
+            console.log('Current favorite state:', isFavorite);
+            
             if (isFavorite) {
                 const { error } = await supabase
                     .from('favorites')
                     .delete()
-                    .eq('user_id', user.user.id)
+                    .eq('user_id', user.id)
                     .eq('recipe_id', recipeId);
                 if (error) throw error;
                 setIsFavorite(false);
+                setBookmarksCount(prev => prev - 1);
             } else {
                 const { error } = await supabase
                     .from('favorites')
-                    .insert([{ user_id: user.user.id, recipe_id: recipeId }]);
+                    .insert([{ user_id: user.id, recipe_id: recipeId }]);
                 if (error) throw error;
                 setIsFavorite(true);
+                setBookmarksCount(prev => prev + 1);
             }
         } catch (err) {
+            console.error('Favorite error:', err);
             alert('Ошибка: ' + err.message);
         }
     };
@@ -149,8 +321,29 @@ export default function RecipeDetails({ route }) {
                                 source={{ uri: item.image_url }}
                                 style={{ width: 40, height: 40, borderRadius: 8, marginRight: 10 }}
                             />
-                            <Text style={{ fontSize: 16, flex: 1 }}>{item.name}</Text>
-                            <Button mode="outlined" compact onPress={() => handleAddToCart(item.id)}>+</Button>
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ fontSize: 16 }}>{item.name}</Text>
+                                <Text style={{ fontSize: 14, color: '#666', marginTop: 4 }}>
+                                    {item.quantity} {item.unit}
+                                </Text>
+                            </View>
+                            <View style={styles.addToCartContainer}>
+                                <TextInput
+                                    style={styles.quantityInput}
+                                    keyboardType="numeric"
+                                    value={selectedQuantity[item.id]?.toString() || item.quantity?.toString()}
+                                    onChangeText={(value) => handleQuantityChange(item.id, value)}
+                                    placeholder={item.quantity?.toString()}
+                                />
+                                <Button 
+                                    mode="contained" 
+                                    compact 
+                                    onPress={() => handleAddToCart(item)}
+                                    style={styles.addButton}
+                                >
+                                    +
+                                </Button>
+                            </View>
                         </View>
                     </Card.Content>
                 </Card>
@@ -173,27 +366,21 @@ export default function RecipeDetails({ route }) {
 
                             <View style={styles.rowBetween}>
                                 <View style={styles.row}>
-                                    {Array(4).fill().map((_, i) => (
+                                    {Array(5).fill().map((_, i) => (
                                         <MaterialCommunityIcons
                                             key={i}
-                                            name="star"
-                                            size={20}
+                                            name={i < Math.floor(recipe.rating) ? "star" : i < recipe.rating ? "star-half-full" : "star-outline"}
+                                            size={28}
                                             color="#FFD700"
                                         />
                                     ))}
-                                    <MaterialCommunityIcons
-                                        name="star-half-full"
-                                        size={20}
-                                        color="#FFD700"
-                                    />
+                                    <Text style={{ marginLeft: 8, fontSize: 16 }}>{recipe.rating?.toFixed(1) || '0.0'}</Text>
                                 </View>
 
                                 <View style={styles.iconRow}>
-                                    <Feather name="share-2" size={22} color="#231942" style={styles.icon} />
-                                    <Feather name="plus-square" size={22} color="#231942" style={styles.icon} />
                                     <View style={styles.bookmarkContainer}>
                                         <Feather name="bookmark" size={22} color="#231942" />
-                                        <Text style={styles.bookmarkText}>1.8 K</Text>
+                                        <Text style={styles.bookmarkText}>{bookmarksCount}</Text>
                                     </View>
                                     <IconButton
                                         icon={isFavorite ? 'heart' : 'heart-outline'}
@@ -242,7 +429,10 @@ export default function RecipeDetails({ route }) {
                         </Card.Content>
                     </Card>
 
-                    <RecipeReviews recipeId={recipe.id} />
+                    <RecipeReviews 
+                        recipeId={recipeId} 
+                        onReviewAdded={updateRecipeRating}
+                    />
                 </View>
             }
         />
@@ -286,7 +476,7 @@ const styles = StyleSheet.create({
         paddingBottom: 30,
     },
     title: {
-        fontSize: 20,
+        fontSize: 24,
         fontWeight: '700',
         color: '#231942',
     },
@@ -341,7 +531,7 @@ const styles = StyleSheet.create({
         color: '#231942',
     },
     description: {
-        fontSize: 14,
+        fontSize: 16,
         color: '#4B3D69',
         marginTop: 10,
         lineHeight: 20,
@@ -359,14 +549,33 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     infoLabel: {
-        fontSize: 12,
+        fontSize: 14,
         color: '#999',
         marginTop: 4,
     },
     infoValue: {
-        fontSize: 14,
+        fontSize: 16,
         color: '#231942',
         fontWeight: '600',
         marginTop: 2,
+    },
+    addToCartContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginLeft: 8,
+    },
+    quantityInput: {
+        width: 50,
+        height: 36,
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 4,
+        paddingHorizontal: 8,
+        textAlign: 'center',
+        marginRight: 8,
+    },
+    addButton: {
+        backgroundColor: '#4c60ff',
+        borderRadius: 4,
     },
 });

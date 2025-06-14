@@ -52,7 +52,7 @@ const MainScreen = ({navigation}) => {
         const getIngredients = async () => {
             const { data, error } = await supabase
                 .from('ingredients')
-                .select('name, image_url')
+                .select('id, name, image_url')
                 .limit(10);
 
             if (error) {
@@ -120,7 +120,7 @@ const MainScreen = ({navigation}) => {
                         <View style={styles.header}>
                             <View style={{flex: 1}}>
                                 <Text style={styles.greeting}>Hello, {user?.username}!</Text>
-                                <Text style={styles.subtitle}>What’s in your fridge?</Text>
+                                <Text style={styles.subtitle}>What's in your fridge?</Text>
                             </View>
                             <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
                                 <Image
@@ -132,24 +132,19 @@ const MainScreen = ({navigation}) => {
 
                         {/* Search Bar */}
                         <View>
-                            <View style={styles.searchContainer}>
+                            <TouchableOpacity 
+                                style={styles.searchContainer}
+                                onPress={() => navigation.navigate('Search')}
+                            >
                                 <MaterialCommunityIcons name="magnify" size={24} color="#999"/>
-                                <TextInput
-                                    placeholder="Search recipes"
-                                    value={searchQuery}
-                                    onChangeText={setSearchQuery}
-                                    placeholderTextColor="#aaa"
-                                    style={styles.searchInput}
-                                    underlineColor="transparent"
-                                />
-                            </View>
+                                <Text style={styles.searchPlaceholder}>Search recipes</Text>
+                            </TouchableOpacity>
                             <TouchableOpacity
                                 style={{ margin: 20, padding: 12, backgroundColor: '#4c60ff', borderRadius: 10 }}
                                 onPress={() => navigation.navigate('FilterModal', { ingredients })}
                             >
                                 <Text style={{ color: '#fff', textAlign: 'center', fontWeight: 'bold' }}>Filters</Text>
                             </TouchableOpacity>
-
                         </View>
                         {/* Ingredient icons */}
                         <ScrollView
@@ -161,7 +156,14 @@ const MainScreen = ({navigation}) => {
                                 <TouchableOpacity
                                     key={i}
                                     style={styles.ingredientItem}
-                                    onPress={() => navigation.navigate('FilteredRecipes', { ingredient: item.id })}
+                                    onPress={() => {
+                                        console.log('Selected ingredient full data:', item);
+                                        navigation.navigate('FilteredRecipes', { 
+                                            filters: {
+                                                ingredients: [item.id]
+                                            }
+                                        });
+                                    }}
                                 >
                                     <Image
                                         source={{ uri: item.image_url }}
@@ -295,12 +297,12 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         backgroundColor: '#f5f5f5',
         marginTop: 10,
+        height: 48,
     },
-    searchInput: {
+    searchPlaceholder: {
         marginLeft: 10,
         fontSize: 16,
-        flex: 1,
-        backgroundColor: '#f5f5f5',
+        color: '#999',
     },
     ingredientsRow: {
         paddingHorizontal: 16,

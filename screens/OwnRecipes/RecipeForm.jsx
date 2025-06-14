@@ -1,23 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
-import { TextInput, Button, Text, IconButton, Chip } from 'react-native-paper';
+import { TextInput, Button, Text, Chip } from 'react-native-paper';
 import { supabase } from '../../supabaseClient';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'react-native';
 import { useUser } from '../../context/UserContext';
 
-const AddOwnRecipeScreen = ({navigation}) => {
+const RecipeForm = ({ recipeId, onSave, initialData = null }) => {
     const { user } = useUser();
-    const [title, setTitle] = useState('');
-    const [description, setDescription] = useState('');
-    const [ingredients, setIngredients] = useState('');
-    const [steps, setSteps] = useState(['']);
-    const [servings, setServings] = useState(2);
-    const [tips, setTips] = useState('');
-    const [difficulty, setDifficulty] = useState('');
-    const [time, setTime] = useState(0);
-    const [occasion, setOccasion] = useState('');
-    const [imageUri, setImageUri] = useState(null);
+    const [title, setTitle] = useState(initialData?.title || '');
+    const [description, setDescription] = useState(initialData?.description || '');
+    const [ingredients, setIngredients] = useState(initialData?.ingredients?.join(', ') || '');
+    const [steps, setSteps] = useState(initialData?.steps || ['']);
+    const [servings, setServings] = useState(initialData?.servings || 2);
+    const [tips, setTips] = useState(initialData?.tips || '');
+    const [difficulty, setDifficulty] = useState(initialData?.difficulty || '');
+    const [time, setTime] = useState(initialData?.cooking_time || 0);
+    const [occasion, setOccasion] = useState(initialData?.occasion || '');
+    const [imageUri, setImageUri] = useState(initialData?.image_url || null);
     const [uploading, setUploading] = useState(false);
 
     const handleAddStep = () => setSteps([...steps, '']);
@@ -46,7 +46,12 @@ const AddOwnRecipeScreen = ({navigation}) => {
     };
 
     const uploadImage = async () => {
-        if (!imageUri) return null;
+        if (!imageUri) return initialData?.image_url || null;
+        
+        // Если это URL, а не локальный файл, значит изображение уже загружено
+        if (imageUri.startsWith('http')) {
+            return imageUri;
+        }
 
         try {
             setUploading(true);
@@ -101,38 +106,22 @@ const AddOwnRecipeScreen = ({navigation}) => {
             setUploading(true);
             const imageUrl = await uploadImage();
 
-            const { error } = await supabase.from('users_own_recipes').insert([
-                {
-                    user_id: user.id,
-                    title,
-                    description,
-                    servings,
-                    ingredients: ingredients.split(',').map((i) => i.trim()),
-                    steps,
-                    tips,
-                    difficulty,
-                    cooking_time: time,
-                    occasion,
-                    image_url: imageUrl
-                }
-            ]);
+            const recipeData = {
+                user_id: user.id,
+                title,
+                description,
+                servings,
+                ingredients: ingredients.split(',').map((i) => i.trim()),
+                steps,
+                tips,
+                difficulty,
+                cooking_time: time,
+                occasion,
+                image_url: imageUrl
+            };
 
-            if (error) {
-                console.error('Save error:', error);
-                alert('Error saving recipe: ' + error.message);
-            } else {
-                alert('Recipe saved successfully!');
-                setTitle('');
-                setDescription('');
-                setIngredients('');
-                setSteps(['']);
-                setServings(2);
-                setTips('');
-                setDifficulty('');
-                setTime(0);
-                setOccasion('');
-                setImageUri(null);
-                navigation.goBack();
+            if (onSave) {
+                await onSave(recipeData);
             }
         } catch (error) {
             console.error('Submit error:', error);
@@ -144,7 +133,7 @@ const AddOwnRecipeScreen = ({navigation}) => {
 
     return (
         <ScrollView contentContainerStyle={styles.container}>
-            <Text variant="titleLarge">Add Own Recipe</Text>
+            <Text variant="titleLarge">{recipeId ? 'Edit Recipe' : 'Add Own Recipe'}</Text>
             <TextInput label="Title" value={title} onChangeText={setTitle} style={styles.input} />
             <TextInput label="Description (optional)" value={description} onChangeText={setDescription} style={styles.input} />
 
@@ -209,19 +198,27 @@ const AddOwnRecipeScreen = ({navigation}) => {
             </View>
 
             <Text variant="titleMedium">Occasion</Text>
-            {['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Dessert'].map((item) => (
-                <Chip
-                    key={item}
-                    selected={occasion === item}
-                    onPress={() => setOccasion(item)}
-                    style={styles.chip}
-                >
-                    {item}
-                </Chip>
-            ))}
+            <View style={styles.chipRow}>
+                {['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Dessert'].map((item) => (
+                    <Chip
+                        key={item}
+                        selected={occasion === item}
+                        onPress={() => setOccasion(item)}
+                        style={styles.chip}
+                    >
+                        {item}
+                    </Chip>
+                ))}
+            </View>
 
-            <Button mode="contained" style={styles.saveButton} onPress={handleSubmit}>
-                Save
+            <Button 
+                mode="contained" 
+                style={styles.saveButton} 
+                onPress={handleSubmit}
+                loading={uploading}
+                disabled={uploading}
+            >
+                {recipeId ? 'Save Changes' : 'Save Recipe'}
             </Button>
         </ScrollView>
     );
@@ -259,4 +256,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default AddOwnRecipeScreen;
+export default RecipeForm; 

@@ -13,6 +13,7 @@ import FilterModal from "./FilterModal";
 import AddOwnRecipeScreen from "./OwnRecipes/AddOwnRecipe";
 import EditOwnRecipeScreen from "./OwnRecipes/EditOwnRecipeScreen";
 import OwnRecipeDetailsScreen from "./OwnRecipes/OwnRecipeDetailsScreen";
+import SearchScreen from "./SearchScreen";
 
 const Stack = createNativeStackNavigator();
 console.log('Navigation component mounted');
@@ -23,7 +24,12 @@ export default function Navigation() {
     return (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
             {user ? (
+                <>
                     <Stack.Screen name="AppTabs" component={BottomTabs} />
+                    <Stack.Screen name="OwnRecipeDetails" component={OwnRecipeDetailsScreen} options={{ title: 'Own Recipe' }} />
+                    <Stack.Screen name="EditOwnRecipe" component={EditOwnRecipeScreen} options={{ title: 'Edit Recipe' }} />
+    
+                </>
             ) : (
                 <>
                     <Stack.Screen name="Login" component={LoginScreen} />
@@ -31,7 +37,7 @@ export default function Navigation() {
                 </>
             )}
 
-            <Stack.Screen name="ArticleDetail" component={ArticleDetail} options={{title: "Article Details"}}/>
+            <Stack.Screen name="ArticleDetails" component={ArticleDetail} options={{title: "Article Details"}}/>
             <Stack.Screen name="Profile" component={ProfileScreen} options={{title: "Profile"}}/>
             <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{title: "EditProfile"}}/>
             <Stack.Screen name="RecipeDetails" component={RecipeDetails} options={{title: "RecipeDetails"}}/>
@@ -39,8 +45,7 @@ export default function Navigation() {
             <Stack.Screen name="FilteredRecipes" component={FilteredRecipesScreen} options={{ title: 'Found Recipes' }} />
             <Stack.Screen name="FilterModal" component={FilterModal} options={{ title: 'Filters' }} />
             <Stack.Screen name="AddOwnRecipe" component={AddOwnRecipeScreen} options={{ title: 'Add Recipe' }} />
-            <Stack.Screen name="EditOwnRecipe" component={EditOwnRecipeScreen} options={{ title: 'Edit Recipe' }} />
-            <Stack.Screen name="OwnRecipeDetails" component={OwnRecipeDetailsScreen} options={{ title: 'Own Recipe' }} />
+            <Stack.Screen name="Search" component={SearchScreen} options={{ title: 'Search Recipes' }} />
         </Stack.Navigator>
     );
 }

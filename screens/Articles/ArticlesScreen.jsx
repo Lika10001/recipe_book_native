@@ -12,26 +12,36 @@ import ArticleCard from './ArticleCard';
 
 export default function LearnScreen({navigation}) {
     const [articles, setArticles] = useState([]);
-    //const [tags, setTags] = useState([]);
+    const [tags, setTags] = useState(['Recipes', 'Health', 'Fitness', 'Cooking', 'Advises']); // Временные теги
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [selectedTag, setSelectedTag] = useState(null);
 
-    const tags = ['Recipes', 'Health', 'Fitness', 'Cooking', 'Advises'];
-
-
     const fetchArticles = async () => {
         try {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('articles')
                 .select('*')
                 .order('created_at', { ascending: false });
 
-            if (error) throw error;
-            /*if (tag) {
-                query = query.contains('tags', [tag]); // предполагается, что поле `tags` — массив
-            }*/
+            if (selectedTag) {
+                query = query.contains('tags', [selectedTag]);
+            }
 
+            const { data, error } = await query;
+
+            if (error) throw error;
+            
+            // Получаем все уникальные теги из статей
+            const allTags = new Set();
+            data?.forEach(article => {
+                if (article.tags && Array.isArray(article.tags)) {
+                    article.tags.forEach(tag => allTags.add(tag));
+                }
+            });
+            ;
+            // Обновляем список тегов
+            //setTags(Array.from(allTags));
             setArticles(data || []);
         } catch (err) {
             console.error('Ошибка загрузки статей:', err.message);
@@ -43,25 +53,11 @@ export default function LearnScreen({navigation}) {
 
     const handleTagPress = (tag) => {
         setSelectedTag(tag === selectedTag ? null : tag);
-        // Пока нет фильтрации — просто визуальный эффект
-    };
-
-    const fetchTags = async () => {
-        try {
-            const { data, error } = await supabase
-                .from('tags')
-                .select('name');
-
-            if (error) throw error;
-            setTags(data.map(tag => tag.name));
-        } catch (err) {
-            console.error('Ошибка загрузки тегов:', err.message);
-        }
     };
 
     useEffect(() => {
         fetchArticles();
-    }, []);
+    }, [selectedTag]);
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -103,26 +99,36 @@ export default function LearnScreen({navigation}) {
             {loading ? (
                 <ActivityIndicator size="large" color="#7F7FFF" style={{ marginTop: 20 }} />
             ) : (
-                <FlatList
-                    data={articles}
-                    keyExtractor={(item) => item.id.toString()}
-                    refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-                    }
-                    contentContainerStyle={{ padding: 16 }}
-                    renderItem={({ item }) => (
-                        <ArticleCard
-                            title={item.title}
-                            author={item.author}
-                            image={item.image}
-                            views={item.views}
-                            avatar={item.avatar}
-                            onPress={() =>
-                                navigation.navigate('ArticleDetails', { article: item })
-                            }
-                        />
-                    )}
-                />
+                <View style={styles.listContainer}>
+                    <FlatList
+                        data={articles}
+                        keyExtractor={(item) => item.id.toString()}
+                        showsVerticalScrollIndicator={false}
+                        refreshControl={
+                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                        }
+                        contentContainerStyle={{
+                            paddingBottom: 20,
+                        }}
+                        renderItem={({ item }) => (
+                            <ArticleCard
+                                title={item.title}
+                                author={item.author}
+                                image={item.image}
+                                views={item.views}
+                                avatar={item.avatar}
+                                onPress={() =>
+                                    navigation.navigate('ArticleDetails', { article: item })
+                                }
+                            />
+                        )}
+                        ListEmptyComponent={
+                            <View style={styles.emptyContainer}>
+                                <Text style={styles.emptyText}>Нет статей для отображения</Text>
+                            </View>
+                        }
+                    />
+                </View>
             )}
         </View>
     );
@@ -140,10 +146,14 @@ const styles = StyleSheet.create({
         marginTop: 25,
         color: '#1C1C1E',
     },
+    listContainer: {
+        flex: 1,
+        paddingHorizontal: 16,
+    },
     tagContainer: {
         marginTop: 10,
-        maxHeight: 150,
-        marginBottom: 10,
+        maxHeight: 60,
+        marginBottom: 0,
     },
     tag: {
         paddingVertical: 6,
@@ -151,12 +161,10 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         backgroundColor: '#F0F0F5',
         marginRight: 10,
-        marginBottom: 8, // добавим отступ снизу
+        marginBottom: 8,
         alignItems: 'center',
         justifyContent: 'center',
         height: 36,
-
-        // отключаем тень
         shadowColor: 'transparent',
         elevation: 0,
         shadowOpacity: 0,
@@ -172,5 +180,16 @@ const styles = StyleSheet.create({
     },
     tagTextSelected: {
         color: '#FFFFFF',
+    },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingTop: 10,
+    },
+    emptyText: {
+        fontSize: 16,
+        color: '#666',
+        textAlign: 'center',
     },
 });

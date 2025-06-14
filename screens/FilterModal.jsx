@@ -8,6 +8,7 @@ import {
     StyleSheet,
     Switch,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 
 const FilterSection = ({ title, children }) => (
     <View style={styles.filterSection}>
@@ -16,29 +17,54 @@ const FilterSection = ({ title, children }) => (
     </View>
 );
 
-const FilterOptions = ({ options, selectedValue, onSelect, suffix }) => {
+const RatingFilter = ({ value, onValueChange }) => {
+    const ratings = [0, 1, 2, 3, 4, 5];
+    
     return (
-        <View style={styles.optionRow}>
-            {options.map((option) => {
-                const isSelected = selectedValue === option;
-                return (
+        <View style={styles.ratingContainer}>
+            <View style={styles.ratingButtons}>
+                {ratings.map((rating) => (
                     <TouchableOpacity
-                        key={option}
-                        style={[styles.optionButton, isSelected && styles.optionButtonSelected]}
-                        onPress={() => onSelect(option)}
-                        activeOpacity={0.8}
+                        key={rating}
+                        style={[
+                            styles.ratingButton,
+                            value === rating && styles.ratingButtonSelected,
+                        ]}
+                        onPress={() => onValueChange(rating)}
                     >
-                        <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
-                            {option}{suffix}
+                        <Text style={[
+                            styles.ratingText,
+                            value === rating && styles.ratingTextSelected,
+                        ]}>
+                            {rating > 0 ? `${rating}★` : 'Any'}
                         </Text>
                     </TouchableOpacity>
-                );
-            })}
+                ))}
+            </View>
         </View>
     );
 };
 
-const IngredientPicker = ({ ingredients, selectedIngredient, setSelectedIngredient }) => (
+const TimeFilter = ({ value, onValueChange }) => {
+    return (
+        <View style={styles.timeContainer}>
+            <Slider
+                style={styles.slider}
+                minimumValue={0}
+                maximumValue={120}
+                step={5}
+                value={value}
+                onValueChange={onValueChange}
+                minimumTrackTintColor="#4c60ff"
+                maximumTrackTintColor="#ddd"
+                thumbTintColor="#4c60ff"
+            />
+            <Text style={styles.timeValue}>{value} min</Text>
+        </View>
+    );
+};
+
+const IngredientPicker = ({ ingredients, selectedIngredients, setSelectedIngredients }) => (
     <ScrollView
         horizontal
         style={{ marginBottom: 10 }}
@@ -46,11 +72,17 @@ const IngredientPicker = ({ ingredients, selectedIngredient, setSelectedIngredie
         contentContainerStyle={{ paddingHorizontal: 10 }}
     >
         {ingredients.map((item, i) => {
-            const isSelected = selectedIngredient === item.name;
+            const isSelected = selectedIngredients.includes(item.id);
             return (
                 <TouchableOpacity
                     key={i}
-                    onPress={() => setSelectedIngredient(isSelected ? null : item.name)}
+                    onPress={() => {
+                        if (isSelected) {
+                            setSelectedIngredients(selectedIngredients.filter(id => id !== item.id));
+                        } else {
+                            setSelectedIngredients([...selectedIngredients, item.id]);
+                        }
+                    }}
                     style={[
                         styles.ingredientContainer,
                         isSelected && styles.ingredientSelected,
@@ -74,15 +106,15 @@ const IngredientPicker = ({ ingredients, selectedIngredient, setSelectedIngredie
 
 const FilterModal = ({ route, navigation }) => {
     const { ingredients } = route.params;
-    const [selectedIngredient, setSelectedIngredient] = useState(null);
-    const [selectedRating, setSelectedRating] = useState(4);
+    const [selectedIngredients, setSelectedIngredients] = useState([]);
+    const [selectedRating, setSelectedRating] = useState(0);
     const [selectedTime, setSelectedTime] = useState(30);
     const [sortRecent, setSortRecent] = useState(true);
 
     const applyFilters = () => {
         navigation.navigate('FilteredRecipes', {
             filters: {
-                ingredient: selectedIngredient,
+                ingredients: selectedIngredients,
                 minRating: selectedRating,
                 maxTime: selectedTime,
                 recent: sortRecent,
@@ -96,49 +128,45 @@ const FilterModal = ({ route, navigation }) => {
             <View style={styles.header}>
                 <Text style={styles.headerText}>Filters</Text>
             </View>
-        <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-            <FilterSection title="Ingredients:">
-                <IngredientPicker
-                    ingredients={ingredients}
-                    selectedIngredient={selectedIngredient}
-                    setSelectedIngredient={setSelectedIngredient}
-                />
-            </FilterSection>
-
-            <FilterSection title="Rate:">
-                <FilterOptions
-                    options={[3, 4, 4.5, 5]}
-                    selectedValue={selectedRating}
-                    onSelect={setSelectedRating}
-                    suffix="★"
-                />
-            </FilterSection>
-
-            <FilterSection title="Cooking time:">
-                <FilterOptions
-                    options={[15, 30, 45, 60]}
-                    selectedValue={selectedTime}
-                    onSelect={setSelectedTime}
-                    suffix=" мин"
-                />
-            </FilterSection>
-
-            <FilterSection title="Sort order:">
-                <View style={styles.switchRow}>
-                    <Text style={styles.switchLabel}>Show newest first</Text>
-                    <Switch
-                        value={sortRecent}
-                        onValueChange={setSortRecent}
-                        trackColor={{ false: '#ccc', true: '#4c60ff' }}
-                        thumbColor="#fff"
+            <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+                <FilterSection title="Ingredients:">
+                    <IngredientPicker
+                        ingredients={ingredients}
+                        selectedIngredients={selectedIngredients}
+                        setSelectedIngredients={setSelectedIngredients}
                     />
-                </View>
-            </FilterSection>
+                </FilterSection>
 
-            <TouchableOpacity style={styles.applyButton} onPress={applyFilters} activeOpacity={0.9}>
-                <Text style={styles.applyButtonText}>Apply Filters</Text>
-            </TouchableOpacity>
-        </ScrollView>
+                <FilterSection title="Minimum Rating:">
+                    <RatingFilter
+                        value={selectedRating}
+                        onValueChange={setSelectedRating}
+                    />
+                </FilterSection>
+
+                <FilterSection title="Maximum Cooking Time:">
+                    <TimeFilter
+                        value={selectedTime}
+                        onValueChange={setSelectedTime}
+                    />
+                </FilterSection>
+
+                <FilterSection title="Sort order:">
+                    <View style={styles.switchRow}>
+                        <Text style={styles.switchLabel}>Show newest first</Text>
+                        <Switch
+                            value={sortRecent}
+                            onValueChange={setSortRecent}
+                            trackColor={{ false: '#ccc', true: '#4c60ff' }}
+                            thumbColor="#fff"
+                        />
+                    </View>
+                </FilterSection>
+
+                <TouchableOpacity style={styles.applyButton} onPress={applyFilters} activeOpacity={0.9}>
+                    <Text style={styles.applyButtonText}>Apply Filters</Text>
+                </TouchableOpacity>
+            </ScrollView>
         </View>
     );
 };
@@ -170,10 +198,48 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-        headerText: {
+    headerText: {
         color: '#fff',
         fontSize: 20,
         fontWeight: '700',
+    },
+    ratingContainer: {
+        marginBottom: 10,
+    },
+    ratingButtons: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    ratingButton: {
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 16,
+        backgroundColor: '#eee',
+    },
+    ratingButtonSelected: {
+        backgroundColor: '#4c60ff',
+    },
+    ratingText: {
+        color: '#444',
+        fontWeight: '600',
+        fontSize: 14,
+    },
+    ratingTextSelected: {
+        color: '#fff',
+    },
+    timeContainer: {
+        marginBottom: 10,
+    },
+    slider: {
+        width: '100%',
+        height: 40,
+    },
+    timeValue: {
+        textAlign: 'center',
+        fontSize: 16,
+        color: '#444',
+        marginTop: 8,
     },
     ingredientContainer: {
         alignItems: 'center',
@@ -206,34 +272,6 @@ const styles = StyleSheet.create({
     ingredientTextSelected: {
         color: '#4c60ff',
         fontWeight: '700',
-    },
-    optionRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        marginBottom: 0,
-    },
-    optionButton: {
-        backgroundColor: '#eee',
-        paddingVertical: 6,
-        paddingHorizontal: 14,
-        borderRadius: 16,
-        marginRight: 10,
-        marginBottom: 10,
-    },
-    optionButtonSelected: {
-        backgroundColor: '#4c60ff',
-        shadowColor: '#4c60ff',
-        shadowOpacity: 0.5,
-        shadowRadius: 8,
-        elevation: 4,
-    },
-    optionText: {
-        color: '#444',
-        fontWeight: '600',
-        fontSize: 14,
-    },
-    optionTextSelected: {
-        color: '#fff',
     },
     switchRow: {
         flexDirection: 'row',

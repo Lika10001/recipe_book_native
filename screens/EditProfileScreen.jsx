@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-    View, TextInput, Image, Alert, TouchableOpacity, Text, StyleSheet
+    View, TextInput, Image, Alert, TouchableOpacity, Text, StyleSheet, Platform
 } from 'react-native';
 import { useUser } from '../context/UserContext';
 import { supabase } from '../supabaseClient';
@@ -36,53 +36,54 @@ export default function EditProfileScreen({ navigation }) {
 
             const asset = result.assets[0];
             const uri = asset.uri;
-            const fileName = `${user.id}_${Date.now()}.jpg`;
-
-            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-            if (sessionError || !session) {
-                Alert.alert('Ошибка', 'Не удалось получить сессию пользователя');
-                return;
-            }
-
-            const token = session.access_token;
+            const fileName = `${user.id}/${Date.now()}.jpg`;
 
             const formData = new FormData();
             formData.append('file', {
-                uri,
+                uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
                 name: fileName,
                 type: 'image/jpeg',
             });
 
-            const uploadResponse = await fetch(`${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${fileName}`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'x-upsert': 'true',
-                    'Content-Type': 'multipart/form-data',
-                },
-                body: formData,
-            });
+            console.log('Uploading file:', fileName);
 
-            if (!uploadResponse.ok) {
-                const errorText = await uploadResponse.text();
-                Alert.alert('Ошибка загрузки', errorText);
+            const { data: uploadData, error: uploadError } = await supabase.storage
+                .from(STORAGE_BUCKET)
+                .upload(fileName, formData, {
+                    contentType: 'image/jpeg',
+                    upsert: true
+                });
+
+            if (uploadError) {
+                console.error('Upload error:', uploadError);
+                Alert.alert('Ошибка загрузки', uploadError.message);
                 return;
             }
 
-            const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${fileName}`;
+            console.log('Upload successful:', uploadData);
+
+            const { data: { publicUrl } } = supabase.storage
+                .from(STORAGE_BUCKET)
+                .getPublicUrl(fileName);
+
+            console.log('Public URL:', publicUrl);
+
             const { error: updateError } = await supabase
                 .from('users')
                 .update({ avatar: publicUrl })
                 .eq('id', user.id);
 
             if (updateError) {
+                console.error('Update error:', updateError);
                 Alert.alert('Ошибка БД', updateError.message);
                 return;
             }
 
             setAvatar(publicUrl);
             setUser({ ...user, avatar: publicUrl });
+            Alert.alert('Успех', 'Аватар успешно обновлен');
         } catch (err) {
+            console.error('Error in pickAvatar:', err);
             Alert.alert('Ошибка', err.message);
         }
     };

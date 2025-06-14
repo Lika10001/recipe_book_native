@@ -44,6 +44,7 @@ const LoginScreen = ({ navigation }) => {
                     avatar: userData?.avatar || '',
                     bio: userData?.bio || '',
                 };
+                console.log('Setting user data:', user);
                 setUser(user);
                 navigation.navigate("AppTabs");
             }
