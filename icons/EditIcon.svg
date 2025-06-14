@@ -1,0 +1,40 @@
+<svg
+        viewBox="0 0 264.58332 264.58334"
+        xmlns="http://www.w3.org/2000/svg"
+>
+  <rect
+          fill="#f7f7f7"
+          width="264.58334"
+          height="264.58334"
+          x="0"
+          y="0"
+  />
+  <path
+          stroke="#0573e1"
+          stroke-width="9.26"
+          fill="none"
+          d="M174.27 140.58v47.92a5 5 0 0 1-5 5H76.08a5 5 0 0 1-5-5V95.31a5 5 0 0 1 5-5h47.92"
+  />
+  <rect
+          fill="none"
+          stroke="#4d4d4d"
+          stroke-width="7.94"
+          width="23.81"
+          height="71.44"
+          x="175.18"
+          y="-59.8"
+          transform="rotate(45)"
+  />
+  <path
+          stroke="#4d4d4d"
+          stroke-width="7.94"
+          fill="none"
+          d="m115.64 132.1 16.84 16.84-2.09 2.09-23.76 6.92 6.92-23.76z"
+  />
+  <path
+          stroke="#4d4d4d"
+          stroke-width="7.94"
+          fill="none"
+          d="m185.66 73.4 5.52 5.52c3.12 3.12 3.12 8.19 0 11.31l-8.19 8.19-16.84-16.84 8.19-8.19c3.12-3.12 8.19-3.12 11.31 0z"
+  />
+</svg>

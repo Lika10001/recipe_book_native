@@ -3,7 +3,14 @@
     "name": "recipe_book",
     "slug": "recipe_book",
     "version": "1.0.0",
+    "scheme": "recipebook",
     "orientation": "portrait",
+    "entryPoint": "./App.js",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -13,16 +20,27 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.likahomik.recipebook"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.likahomik.recipebook"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "a3970558-844d-4372-8179-b45f9665affa"
+      }
+    },
+    "plugins": [
+      "expo-font"
+    ]
   }
 }
