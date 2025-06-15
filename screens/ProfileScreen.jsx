@@ -136,7 +136,7 @@ export default function ProfileScreen({ navigation }) {
 
     return (
         <View style={styles.container}>
-            <StatusBar barStyle="dark-content" />
+           
             <View style={styles.profileContainer}>
                 <View style={styles.headerRow}>
                     <Text style={styles.header}>Profile</Text>

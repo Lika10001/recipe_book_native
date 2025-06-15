@@ -26,6 +26,12 @@ export default function RecipeDetails({ route }) {
     const [bookmarksCount, setBookmarksCount] = useState(0);
     const { user } = useUser();
     const [selectedQuantity, setSelectedQuantity] = useState({});
+    const [totalNutrition, setTotalNutrition] = useState({
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fiber: 0
+    });
 
     console.log('Full user object:', user);
 
@@ -99,6 +105,45 @@ export default function RecipeDetails({ route }) {
         setBookmarksCount(data.length);
     };
 
+    // Рассчитать общую калорийность и нутриенты
+    const calculateTotalNutrition = (ingredientsList) => {
+        let totalCalories = 0;
+        let totalProtein = 0;
+        let totalCarbs = 0;
+        let totalFiber = 0;
+
+        ingredientsList.forEach(item => {
+            const ingredient = item.ingredients;
+            const quantity = item.quantity;
+            
+            // Переводим количество в граммы/мл если нужно
+            let normalizedQuantity = quantity;
+            if (ingredient.unit === 'ml' || ingredient.unit === 'g') {
+                normalizedQuantity = quantity;
+            } else if (ingredient.unit === 'kg' || ingredient.unit === 'l') {
+                normalizedQuantity = quantity * 1000;
+            } else if (ingredient.unit === 'tbsp') {
+                normalizedQuantity = quantity * 15; // 1 столовая ложка = 15 мл
+            } else if (ingredient.unit === 'tsp') {
+                normalizedQuantity = quantity * 5; // 1 чайная ложка = 5 мл
+            }
+
+            // Считаем нутриенты на основе количества
+            const multiplier = normalizedQuantity / 100; // Все значения в БД на 100г/мл
+            totalCalories += (ingredient.calories || 0) * multiplier;
+            totalProtein += (ingredient.proteins || 0) * multiplier;
+            totalCarbs += (ingredient.carbs || 0) * multiplier;
+            totalFiber += (ingredient.fiber || 0) * multiplier;
+        });
+
+        setTotalNutrition({
+            calories: Math.round(totalCalories),
+            protein: Math.round(totalProtein),
+            carbs: Math.round(totalCarbs),
+            fiber: Math.round(totalFiber)
+        });
+    };
+
     useEffect(() => {
         async function fetchData() {
             try {
@@ -116,6 +161,9 @@ export default function RecipeDetails({ route }) {
                                 name,
                                 image_url,
                                 calories,
+                                proteins,
+                                carbs,
+                                fiber,
                                 category,
                                 unit
                             )
@@ -131,11 +179,8 @@ export default function RecipeDetails({ route }) {
 
                 setRecipe(recipeRes.data);
                 if (ingredientsRes.data?.length) {
-                    const mappedIngredients = ingredientsRes.data.map(item => ({
-                        ...item.ingredients,
-                        quantity: item.quantity
-                    }));
-                    setIngredients(mappedIngredients);
+                    setIngredients(ingredientsRes.data);
+                    calculateTotalNutrition(ingredientsRes.data);
                 }
 
                 // Проверяем избранное
@@ -218,7 +263,7 @@ export default function RecipeDetails({ route }) {
 
     const handleAddToCart = async (ingredient) => {
         if (!user?.id) {
-            alert('Войдите в систему');
+            alert('Login to the system');
             return;
         }
 
@@ -240,16 +285,16 @@ export default function RecipeDetails({ route }) {
                 }]);
 
             if (error) {
-                console.error('Ошибка добавления в корзину:', error);
-                alert('Не удалось добавить в корзину');
+                console.error('Error adding to cart:', error);
+                alert('Error adding to cart');
                 return;
             }
 
-            alert('Добавлено в корзину');
+            alert('Added to cart');
             setSelectedQuantity(prev => ({ ...prev, [ingredient.id]: undefined }));
         } catch (err) {
-            console.error('Ошибка при добавлении в корзину:', err);
-            alert('Произошла ошибка');
+            console.error('Error adding to cart:', err);
+            alert('Error adding to cart');
         }
     };
 
@@ -262,7 +307,7 @@ export default function RecipeDetails({ route }) {
 
     const handleFavorite = async () => {
         if (!user?.id) {
-            alert('Войдите в систему');
+            alert('Login to the system');
             return;
         }
 
@@ -289,7 +334,7 @@ export default function RecipeDetails({ route }) {
             }
         } catch (err) {
             console.error('Favorite error:', err);
-            alert('Ошибка: ' + err.message);
+            alert('Error: ' + err.message);
         }
     };
 
@@ -304,7 +349,7 @@ export default function RecipeDetails({ route }) {
     if (error || !recipe) {
         return (
             <View style={styles.centered}>
-                <Text style={styles.errorText}>Рецепт не найден</Text>
+                <Text style={styles.errorText}>Recipe not found</Text>
             </View>
         );
     }
@@ -312,33 +357,33 @@ export default function RecipeDetails({ route }) {
     return (
         <FlatList
             data={ingredients}
-            keyExtractor={(item) => item.id.toString()}
+            keyExtractor={(item) => item?.ingredients?.id?.toString() || Math.random().toString()}
             renderItem={({ item }) => (
                 <Card style={{ marginBottom: 12, marginHorizontal: 20, borderRadius: 16, backgroundColor: '#FFF' }}>
                     <Card.Content>
                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                             <Image
-                                source={{ uri: item.image_url }}
+                                source={{ uri: item?.ingredients?.image_url }}
                                 style={{ width: 40, height: 40, borderRadius: 8, marginRight: 10 }}
                             />
                             <View style={{ flex: 1 }}>
-                                <Text style={{ fontSize: 16 }}>{item.name}</Text>
+                                <Text style={{ fontSize: 16 }}>{item?.ingredients?.name}</Text>
                                 <Text style={{ fontSize: 14, color: '#666', marginTop: 4 }}>
-                                    {item.quantity} {item.unit}
+                                    {item?.quantity} {item?.ingredients?.unit}
                                 </Text>
                             </View>
                             <View style={styles.addToCartContainer}>
                                 <TextInput
                                     style={styles.quantityInput}
                                     keyboardType="numeric"
-                                    value={selectedQuantity[item.id]?.toString() || item.quantity?.toString()}
-                                    onChangeText={(value) => handleQuantityChange(item.id, value)}
-                                    placeholder={item.quantity?.toString()}
+                                    value={selectedQuantity[item?.ingredients?.id]?.toString() || item?.quantity?.toString()}
+                                    onChangeText={(value) => handleQuantityChange(item?.ingredients?.id, value)}
+                                    placeholder={item?.quantity?.toString()}
                                 />
                                 <Button 
                                     mode="contained" 
                                     compact 
-                                    onPress={() => handleAddToCart(item)}
+                                    onPress={() => handleAddToCart(item?.ingredients)}
                                     style={styles.addButton}
                                 >
                                     +
@@ -351,7 +396,7 @@ export default function RecipeDetails({ route }) {
             ListHeaderComponent={
                 <>
                     <View style={styles.imageContainer}>
-                        <Image source={{ uri: recipe.image }} style={styles.image} />
+                        <Image source={{ uri: recipe?.image }} style={styles.image} />
                         <IconButton
                             icon="arrow-left"
                             size={24}
@@ -362,19 +407,19 @@ export default function RecipeDetails({ route }) {
 
                     <View style={styles.content}>
                         <View style={styles.headerRow}>
-                            <Text style={styles.title}>{recipe.name}</Text>
+                            <Text style={styles.title}>{recipe?.name}</Text>
 
                             <View style={styles.rowBetween}>
                                 <View style={styles.row}>
                                     {Array(5).fill().map((_, i) => (
                                         <MaterialCommunityIcons
                                             key={i}
-                                            name={i < Math.floor(recipe.rating) ? "star" : i < recipe.rating ? "star-half-full" : "star-outline"}
+                                            name={i < Math.floor(recipe?.rating || 0) ? "star" : i < (recipe?.rating || 0) ? "star-half-full" : "star-outline"}
                                             size={28}
                                             color="#FFD700"
                                         />
                                     ))}
-                                    <Text style={{ marginLeft: 8, fontSize: 16 }}>{recipe.rating?.toFixed(1) || '0.0'}</Text>
+                                    <Text style={{ marginLeft: 8, fontSize: 16 }}>{(recipe?.rating || 0).toFixed(1)}</Text>
                                 </View>
 
                                 <View style={styles.iconRow}>
@@ -391,14 +436,14 @@ export default function RecipeDetails({ route }) {
                                 </View>
                             </View>
 
-                            <Text style={styles.description}>{recipe.description}</Text>
+                            <Text style={styles.description}>{recipe?.description}</Text>
 
                             <View style={styles.infoBlock}>
                                 {[
-                                    { icon: 'carrot', label: 'Ingredients', value: ingredients.length.toString() },
-                                    { icon: 'meditation', label: 'Difficulty', value: 'Easy' },
-                                    { icon: 'clock-outline', label: 'Time', value: "50'" },
-                                    { icon: 'lightning-bolt', label: 'Calories', value: '340' },
+                                    { icon: 'carrot', label: 'Ingredients', value: ingredients?.length?.toString() || '0' },
+                                    { icon: 'meditation', label: 'Difficulty', value: recipe?.difficulty || 'Easy' },
+                                    { icon: 'clock-outline', label: 'Time', value: `${recipe?.cooking_time || 0}'` },
+                                    { icon: 'lightning-bolt', label: 'Calories', value: totalNutrition.calories.toString() },
                                 ].map((item, index) => (
                                     <View key={index} style={styles.infoItem}>
                                         <MaterialCommunityIcons name={item.icon} size={20} color="#231942" />
@@ -420,7 +465,7 @@ export default function RecipeDetails({ route }) {
                     <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 8 }}>Preparación</Text>
                     <Card style={{ borderRadius: 16, backgroundColor: '#FFF' }}>
                         <Card.Content>
-                            {recipe.steps.map((step, index) => (
+                            {recipe?.steps?.map((step, index) => (
                                 <View key={index} style={{ marginBottom: 12 }}>
                                     <Text style={{ fontSize: 16, fontWeight: '600', color: '#999' }}>Paso {index + 1}</Text>
                                     <Text style={{ fontSize: 16 }}>{step}</Text>
@@ -577,5 +622,26 @@ const styles = StyleSheet.create({
     addButton: {
         backgroundColor: '#4c60ff',
         borderRadius: 4,
+    },
+    nutritionInfo: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        paddingVertical: 16,
+        backgroundColor: '#f8f8f8',
+        borderRadius: 8,
+        marginTop: 16,
+    },
+    nutritionItem: {
+        alignItems: 'center',
+    },
+    nutritionValue: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#4c60ff',
+    },
+    nutritionLabel: {
+        fontSize: 12,
+        color: '#666',
+        marginTop: 4,
     },
 });

@@ -23,8 +23,7 @@ export default function ArticleCard({ title, author, avatar, image, views = 0, o
                         <Text style={styles.author}>{author}</Text>
                     </View>
                     <View style={styles.rightIcons}>
-                        <Ionicons name="share-outline" size={18} color="#444" />
-                        <Ionicons name="bookmark-outline" size={18} color="#444" style={{ marginLeft: 8 }} />
+                        <Ionicons name="eye" size={18} color="#444" style={{ marginLeft: 8 }} />
                         <Text style={styles.views}>{views}</Text>
                     </View>
                 </View>

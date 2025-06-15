@@ -68,7 +68,6 @@ export default function LearnScreen({navigation}) {
         <View style={styles.container}>
             <Text style={styles.header}>Learn</Text>
 
-            {/* 🔹 Муляж тегов */}
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -124,7 +123,7 @@ export default function LearnScreen({navigation}) {
                         )}
                         ListEmptyComponent={
                             <View style={styles.emptyContainer}>
-                                <Text style={styles.emptyText}>Нет статей для отображения</Text>
+                                <Text style={styles.emptyText}>No articles for displaying</Text>
                             </View>
                         }
                     />

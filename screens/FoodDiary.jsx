@@ -39,19 +39,113 @@ const FoodDiary = () => {
     const [selectedMealType, setSelectedMealType] = useState(null);
     const [calories, setCalories] = useState(0);
 
-    // Загрузка рецептов из базы
+    // Загрузка записей дневника для выбранной даты
+    const fetchDiaryEntries = async (selectedDate) => {
+        if (!user) return;
+
+        const { data, error } = await supabase
+            .from('meal_journal')
+            .select(`
+                *,
+                recipe:recipe_id (*)
+            `)
+            .eq('user_id', user.id)
+            .eq('journal_date', selectedDate.toISOString().split('T')[0]);
+
+        if (error) {
+            console.error('Error fetching diary entries:', error);
+            return;
+        }
+
+        // Преобразуем данные в нужный формат
+        const newMeals = {
+            breakfast: null,
+            lunch: null,
+            dinner: null,
+        };
+
+        data.forEach(entry => {
+            if (entry.recipe) {
+                // Объединяем данные рецепта с сохраненными нутриентами
+                newMeals[entry.meal_type] = {
+                    ...entry.recipe,
+                    calories: entry.calories,
+                    proteins: entry.proteins,
+                    carbs: entry.carbs,
+                    fiber: entry.fiber
+                };
+            }
+        });
+
+        setMeals(newMeals);
+    };
+
     const fetchRecipes = async () => {
-        const { data, error } = await supabase.from('recipes').select('*');
+        const { data, error } = await supabase
+            .from('recipes')
+            .select(`
+                *,
+                recipes_ingredients (
+                    quantity,
+                    ingredients:ingredient_id (
+                        calories,
+                        proteins,
+                        carbs,
+                        fiber,
+                        unit
+                    )
+                )
+            `);
         if (error) {
             console.error('Error fetching recipes:', error);
         } else {
-            setRecipes(data);
+            // Рассчитываем калории и нутриенты для каждого рецепта
+            const recipesWithNutrition = data.map(recipe => {
+                let totalCalories = 0;
+                let totalProteins = 0;
+                let totalCarbs = 0;
+                let totalFiber = 0;
+
+                recipe.recipes_ingredients?.forEach(item => {
+                    const ingredient = item.ingredients;
+                    const quantity = item.quantity;
+                    
+                    // Переводим количество в граммы/мл если нужно
+                    let normalizedQuantity = quantity;
+                    if (ingredient.unit === 'ml' || ingredient.unit === 'g') {
+                        normalizedQuantity = quantity;
+                    } else if (ingredient.unit === 'kg' || ingredient.unit === 'l') {
+                        normalizedQuantity = quantity * 1000;
+                    } else if (ingredient.unit === 'tbsp') {
+                        normalizedQuantity = quantity * 15;
+                    } else if (ingredient.unit === 'tsp') {
+                        normalizedQuantity = quantity * 5;
+                    }
+
+                    const multiplier = normalizedQuantity / 100;
+                    totalCalories += (ingredient.calories || 0) * multiplier;
+                    totalProteins += (ingredient.proteins || 0) * multiplier;
+                    totalCarbs += (ingredient.carbs || 0) * multiplier;
+                    totalFiber += (ingredient.fiber || 0) * multiplier;
+                });
+
+                return {
+                    ...recipe,
+                    calories: Math.round(totalCalories),
+                    proteins: Math.round(totalProteins),
+                    carbs: Math.round(totalCarbs),
+                    fiber: Math.round(totalFiber)
+                };
+            });
+
+            setRecipes(recipesWithNutrition);
         }
     };
 
     useEffect(() => {
         fetchRecipes();
-    }, []);
+        fetchDiaryEntries(date);
+    }, [date, user]);
 
     // Смена даты назад/вперед
     const changeDate = (direction) => {
@@ -69,44 +163,218 @@ const FoodDiary = () => {
     };
 
     // Выбрать блюдо из списка
-    const selectRecipe = (recipe) => {
-        setMeals((prev) => ({
-            ...prev,
-            [selectedMealType]: recipe,
-        }));
-        setModalVisible(false);
+    const selectRecipe = async (recipe) => {
+        if (!user) {
+            alert('Please log in first!');
+            return;
+        }
+
+        try {
+            // Сначала удаляем старую запись для этого приема пищи
+            await supabase
+                .from('meal_journal')
+                .delete()
+                .eq('user_id', user.id)
+                .eq('journal_date', date.toISOString().split('T')[0])
+                .eq('meal_type', selectedMealType);
+
+            // Рассчитываем нутриенты для рецепта
+            const { data: ingredientsData, error: ingredientsError } = await supabase
+                .from('recipes_ingredients')
+                .select(`
+                    quantity,
+                    ingredients:ingredient_id (
+                        calories,
+                        proteins,
+                        carbs,
+                        fiber,
+                        unit
+                    )
+                `)
+                .eq('recipe_id', recipe.id);
+
+            if (ingredientsError) {
+                console.error('Error fetching ingredients:', ingredientsError);
+                return;
+            }
+
+            let totalCalories = 0;
+            let totalProteins = 0;
+            let totalCarbs = 0;
+            let totalFiber = 0;
+
+            ingredientsData.forEach(item => {
+                const ingredient = item.ingredients;
+                const quantity = item.quantity;
+                
+                // Переводим количество в граммы/мл если нужно
+                let normalizedQuantity = quantity;
+                if (ingredient.unit === 'ml' || ingredient.unit === 'g') {
+                    normalizedQuantity = quantity;
+                } else if (ingredient.unit === 'kg' || ingredient.unit === 'l') {
+                    normalizedQuantity = quantity * 1000;
+                } else if (ingredient.unit === 'tbsp') {
+                    normalizedQuantity = quantity * 15;
+                } else if (ingredient.unit === 'tsp') {
+                    normalizedQuantity = quantity * 5;
+                }
+
+                const multiplier = normalizedQuantity / 100;
+                totalCalories += (ingredient.calories || 0) * multiplier;
+                totalProteins += (ingredient.proteins || 0) * multiplier;
+                totalCarbs += (ingredient.carbs || 0) * multiplier;
+                totalFiber += (ingredient.fiber || 0) * multiplier;
+            });
+
+            // Добавляем новую запись с нутриентами
+            const { error } = await supabase
+                .from('meal_journal')
+                .insert([{
+                    user_id: user.id,
+                    meal_type: selectedMealType,
+                    journal_date: date.toISOString().split('T')[0],
+                    recipe_id: recipe.id,
+                    calories: Math.round(totalCalories),
+                    proteins: Math.round(totalProteins),
+                    carbs: Math.round(totalCarbs),
+                    fiber: Math.round(totalFiber)
+                }]);
+
+            if (error) {
+                console.error('Error saving meal:', error);
+                alert('Error saving meal.');
+                return;
+            }
+
+            // Обновляем рецепт с рассчитанными нутриентами
+            const updatedRecipe = {
+                ...recipe,
+                calories: Math.round(totalCalories),
+                proteins: Math.round(totalProteins),
+                carbs: Math.round(totalCarbs),
+                fiber: Math.round(totalFiber)
+            };
+
+            setMeals((prev) => ({
+                ...prev,
+                [selectedMealType]: updatedRecipe,
+            }));
+            setModalVisible(false);
+        } catch (error) {
+            console.error('Error in selectRecipe:', error);
+            alert('Error saving meal.');
+        }
     };
 
     // Рассчитать суммарные нутриенты
-    const calculateNutrition = () => {
+    const calculateNutrition = async () => {
         let fiberSum = 0,
             proteinSum = 0,
             carbsSum = 0;
 
-        Object.values(meals).forEach((meal) => {
-            if (meal) {
-                fiberSum += meal.fiber || 0;
-                proteinSum += meal.protein || 0;
-                carbsSum += meal.carbs || 0;
+        for (const [mealType, meal] of Object.entries(meals)) {
+            if (!meal) continue;
+
+            // Получаем ингредиенты рецепта с их количествами
+            const { data: ingredientsData, error } = await supabase
+                .from('recipes_ingredients')
+                .select(`
+                    quantity,
+                    ingredients:ingredient_id (
+                        calories,
+                        proteins,
+                        carbs,
+                        fiber,
+                        unit
+                    )
+                `)
+                .eq('recipe_id', meal.id);
+
+            if (error) {
+                console.error('Error fetching ingredients:', error);
+                continue;
             }
-        });
+
+            // Считаем нутриенты для каждого ингредиента
+            ingredientsData.forEach(item => {
+                const ingredient = item.ingredients;
+                const quantity = item.quantity;
+                
+                // Переводим количество в граммы/мл если нужно
+                let normalizedQuantity = quantity;
+                if (ingredient.unit === 'ml' || ingredient.unit === 'g') {
+                    normalizedQuantity = quantity;
+                } else if (ingredient.unit === 'kg' || ingredient.unit === 'l') {
+                    normalizedQuantity = quantity * 1000;
+                } else if (ingredient.unit === 'tbsp') {
+                    normalizedQuantity = quantity * 15; // 1 столовая ложка = 15 мл
+                } else if (ingredient.unit === 'tsp') {
+                    normalizedQuantity = quantity * 5; // 1 чайная ложка = 5 мл
+                }
+
+                // Считаем нутриенты на основе количества
+                const multiplier = normalizedQuantity / 100; // Все значения в БД на 100г/мл
+                fiberSum += (ingredient.fiber || 0) * multiplier;
+                proteinSum += (ingredient.proteins || 0) * multiplier;
+                carbsSum += (ingredient.carbs || 0) * multiplier;
+            });
+        }
 
         setNutrition({
-            fiber: { current: fiberSum, target: 30 },
-            protein: { current: proteinSum, target: 100 },
-            carbs: { current: carbsSum, target: 250 },
+            fiber: { current: Math.round(fiberSum), target: 30 },
+            protein: { current: Math.round(proteinSum), target: 100 },
+            carbs: { current: Math.round(carbsSum), target: 250 },
         });
     };
 
     // Рассчитать суммарные калории
-    const calculateTotalCalories = () => {
+    const calculateTotalCalories = async () => {
         let totalCalories = 0;
 
-        if (meals.breakfast) totalCalories += meals.breakfast.calories || 0;
-        if (meals.lunch) totalCalories += meals.lunch.calories || 0;
-        if (meals.dinner) totalCalories += meals.dinner.calories || 0;
+        for (const [mealType, meal] of Object.entries(meals)) {
+            if (!meal) continue;
 
-        setCalories(totalCalories);
+            // Получаем ингредиенты рецепта с их количествами
+            const { data: ingredientsData, error } = await supabase
+                .from('recipes_ingredients')
+                .select(`
+                    quantity,
+                    ingredients:ingredient_id (
+                        calories,
+                        unit
+                    )
+                `)
+                .eq('recipe_id', meal.id);
+
+            if (error) {
+                console.error('Error fetching ingredients:', error);
+                continue;
+            }
+
+            // Считаем калории для каждого ингредиента
+            ingredientsData.forEach(item => {
+                const ingredient = item.ingredients;
+                const quantity = item.quantity;
+                
+                // Переводим количество в граммы/мл если нужно
+                let normalizedQuantity = quantity;
+                if (ingredient.unit === 'ml' || ingredient.unit === 'g') {
+                    normalizedQuantity = quantity;
+                } else if (ingredient.unit === 'kg' || ingredient.unit === 'l') {
+                    normalizedQuantity = quantity * 1000;
+                } else if (ingredient.unit === 'tbsp') {
+                    normalizedQuantity = quantity * 15; // 1 столовая ложка = 15 мл
+                } else if (ingredient.unit === 'tsp') {
+                    normalizedQuantity = quantity * 5; // 1 чайная ложка = 5 мл
+                }
+
+                // Считаем калории на основе количества
+                const multiplier = normalizedQuantity / 100; // Все значения в БД на 100г/мл
+                totalCalories += (ingredient.calories || 0) * multiplier;
+            });
+        }
+
+        setCalories(Math.round(totalCalories));
     };
 
     useEffect(() => {
@@ -114,28 +382,31 @@ const FoodDiary = () => {
         calculateTotalCalories();
     }, [meals]);
 
-    // Сохранить приемы пищи в базу
-    const handleSaveMeal = async () => {
+    // Удалить прием пищи
+    const removeMeal = async (mealType) => {
         if (!user) {
             alert('Please log in first!');
             return;
         }
 
-        const mealData = {
-            user_id: user.id,
-            date: date.toISOString().split('T')[0], // yyyy-mm-dd
-            breakfast: meals.breakfast ? meals.breakfast.id : null,
-            lunch: meals.lunch ? meals.lunch.id : null,
-            dinner: meals.dinner ? meals.dinner.id : null,
-            calories,
-        };
+        try {
+            const { error } = await supabase
+                .from('meal_journal')
+                .delete()
+                .eq('user_id', user.id)
+                .eq('journal_date', date.toISOString().split('T')[0])
+                .eq('meal_type', mealType);
 
-        const { error } = await supabase.from('food_diary').insert([mealData]);
-        if (error) {
-            console.error('Error saving meal:', error);
-            alert('Error saving meal.');
-        } else {
-            alert('Meal successfully saved!');
+            if (error) {
+                console.error('Error removing meal:', error);
+                alert('Error removing meal.');
+                return;
+            }
+
+            setMeals((prev) => ({ ...prev, [mealType]: null }));
+        } catch (error) {
+            console.error('Error in removeMeal:', error);
+            alert('Error removing meal.');
         }
     };
 
@@ -187,11 +458,11 @@ const FoodDiary = () => {
                         {nutrition.carbs.current}/{nutrition.carbs.target} g
                     </Text>
                 </View>
-                <TouchableOpacity style={styles.ekiluButton}>
-                    <Text style={styles.ekiluText}>
-                        ① Get ekilu+ to see your nutritional balance based on the Healthy Plate!
-                    </Text>
-                </TouchableOpacity>
+                <View style={styles.caloriesContainer}>
+                    <Text style={styles.caloriesLabel}>Total Calories:</Text>
+                    <Text style={styles.caloriesValue}>{calories} kcal</Text>
+                </View>
+                
             </View>
 
             <View style={styles.divider} />
@@ -204,7 +475,7 @@ const FoodDiary = () => {
                             <Icon
                                 name={mealIcons[mealType]}
                                 size={24}
-                                color="#ff6347"
+                                color="#4c60ff"
                                 style={{ marginRight: 8 }}
                             />
                             <Text style={styles.mealTitle}>
@@ -217,9 +488,7 @@ const FoodDiary = () => {
                                 <Text style={styles.mealCalories}>{meals[mealType].calories} kcal</Text>
                                 <TouchableOpacity
                                     style={styles.removeButton}
-                                    onPress={() =>
-                                        setMeals((prev) => ({ ...prev, [mealType]: null }))
-                                    }
+                                    onPress={() => removeMeal(mealType)}
                                 >
                                     <Icon name="close-circle" size={24} color="#ff6347" />
                                 </TouchableOpacity>
@@ -238,7 +507,7 @@ const FoodDiary = () => {
             ))}
 
             {/* Кнопка сохранить */}
-            <TouchableOpacity style={styles.saveButton} onPress={handleSaveMeal}>
+            <TouchableOpacity style={styles.saveButton} onPress={() => {}}>
                 <Text style={styles.saveButtonText}>Save</Text>
             </TouchableOpacity>
 
@@ -255,8 +524,21 @@ const FoodDiary = () => {
                                     style={styles.recipeItem}
                                     onPress={() => selectRecipe(item)}
                                 >
-                                    <Text style={styles.recipeName}>{item.name}</Text>
-                                    <Text style={styles.recipeCalories}>{item.calories} kcal</Text>
+                                    <Image
+                                        source={{ uri: item.image }}
+                                        style={styles.recipeImage}
+                                        resizeMode="cover"
+                                    />
+                                    <View style={styles.recipeInfo}>
+                                        <Text style={styles.recipeName}>{item.name}</Text>
+                                        <Text style={styles.recipeDescription}>{item.description}</Text>
+                                        <View style={styles.recipeNutrition}>
+                                            <Text style={styles.recipeCalories}>{item.calories} kcal</Text>
+                                            <Text style={styles.recipeMacros}>
+                                                P: {item.proteins}g C: {item.carbs}g F: {item.fiber}g
+                                            </Text>
+                                        </View>
+                                    </View>
                                 </Pressable>
                             )}
                         />
@@ -325,6 +607,26 @@ const styles = StyleSheet.create({
     nutritionValue: {
         fontSize: 14,
         color: '#777',
+    },
+    caloriesContainer: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: 12,
+        padding: 8,
+        backgroundColor: '#f8f8f8',
+        borderRadius: 8,
+    },
+    caloriesLabel: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#444',
+        marginRight: 8,
+    },
+    caloriesValue: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#4c60ff',
     },
     ekiluButton: {
         marginTop: 12,
@@ -417,16 +719,41 @@ const styles = StyleSheet.create({
         borderBottomColor: '#ddd',
         borderBottomWidth: 1,
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    recipeImage: {
+        width: 80,
+        height: 80,
+        borderRadius: 8,
+        marginRight: 12,
+    },
+    recipeInfo: {
+        flex: 1,
     },
     recipeName: {
         fontSize: 16,
+        fontWeight: '600',
         color: '#333',
+        marginBottom: 4,
+    },
+    recipeDescription: {
+        fontSize: 12,
+        color: '#666',
+        marginBottom: 8,
+    },
+    recipeNutrition: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     recipeCalories: {
         fontSize: 14,
         color: '#4c60ff',
         fontWeight: '600',
+        marginRight: 8,
+    },
+    recipeMacros: {
+        fontSize: 12,
+        color: '#666',
     },
     modalCloseButton: {
         marginTop: 16,
