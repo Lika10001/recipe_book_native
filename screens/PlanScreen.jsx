@@ -7,36 +7,29 @@ import {
     TouchableOpacity,
     Modal,
     TextInput,
-    Image,
     Alert,
-    Platform,
+    Image,
     ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
 import { supabase } from '../supabaseClient';
 import { useUser } from '../context/UserContext';
 import { useNavigation } from '@react-navigation/native';
+import * as Calendar from 'expo-calendar';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
-WebBrowser.maybeCompleteAuthSession();
 
-// Constants
-const GOOGLE_CLIENT_ID = '1050883308908-mqvj2bu729dhbvar1tdgjnp543gme7sk.apps.googleusercontent.com';
-const REDIRECT_URI = Platform.select({
-    web: 'http://localhost:8081',
-    default: 'exp://localhost:8081',
-});
-const BASE_URL = 'http://localhost:8081';
-const APP_SCHEME = 'recipebook';
-
-// Заглушка корзины
-const dummyCart = [
-    { id: '1', name: 'Tomatoes', qty: 3 },
-    { id: '2', name: 'Cheese', qty: 1 },
-    { id: '3', name: 'Chicken Breast', qty: 2 },
-];
+async function getCalendars() {
+    const { status } = await Calendar.requestCalendarPermissionsAsync();
+    if (status === 'granted') {
+      const calendars = await Calendar.getCalendarsAsync();
+      console.log('Calendars:', calendars);
+      return calendars;
+    } else {
+      alert('Permission to access calendar is required!');
+      return [];
+    }
+  }
 
 function getCurrentWeekDays() {
     const daysOfWeekLabels = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -61,27 +54,7 @@ function getCurrentWeekDays() {
     }
     return weekDays;
 }
-
-// Auth Status Component
-const AuthStatus = ({ accessToken, onPress }) => {
-    return (
-        <TouchableOpacity 
-            onPress={onPress} 
-            style={styles.authButton}
-        >
-            <View style={styles.authContent}>
-                <Ionicons 
-                    name={accessToken ? "checkmark-circle" : "log-in"} 
-                    size={24} 
-                    color={accessToken ? "#4CAF50" : "#FF7A5C"} 
-                />
-                <Text style={styles.authText}>
-                    {accessToken ? "Connected to Google Calendar" : "Connect Google Calendar"}
-                </Text>
-            </View>
-        </TouchableOpacity>
-    );
-};
+  
 
 export default function PlanScreen() {
     const { user } = useUser();
@@ -90,7 +63,6 @@ export default function PlanScreen() {
 
     const [cartVisible, setCartVisible] = useState(false);
     const [eventModalVisible, setEventModalVisible] = useState(false);
-    const [accessToken, setAccessToken] = useState(null);
 
     const [eventType, setEventType] = useState(null);
     const [eventFilter, setEventFilter] = useState('all'); // 'all', 'cook', 'shopping'
@@ -107,24 +79,11 @@ export default function PlanScreen() {
     // Для показа DateTimePicker
     const [showStartPicker, setShowStartPicker] = useState(false);
     const [showEndPicker, setShowEndPicker] = useState(false);
+    const [showDatePicker, setShowDatePicker] = useState(false);
 
     // События, созданные на странице
     const [createdEvents, setCreatedEvents] = useState([]);
 
-    // Google OAuth configuration
-    const [request, response, promptAsync] = Google.useAuthRequest({
-        clientId: GOOGLE_CLIENT_ID,
-        scopes: [
-            'openid',
-            'profile',
-            'email',
-            'https://www.googleapis.com/auth/calendar',
-        ],
-        redirectUri: REDIRECT_URI,
-        responseType: 'token',
-        usePKCE: true,
-        useProxy: Platform.OS !== 'web',
-    });
 
     const [cartItems, setCartItems] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -152,7 +111,6 @@ export default function PlanScreen() {
                 return;
             }
 
-            console.log('Cart items:', data); // Добавим для отладки
             setCartItems(data || []);
         } catch (err) {
             console.error('Error in fetchCartItems:', err);
@@ -176,19 +134,7 @@ export default function PlanScreen() {
         return unsubscribe;
     }, [navigation, user]);
 
-    useEffect(() => {
-        if (response?.type === 'success') {
-            const { authentication } = response;
-            setAccessToken(authentication.accessToken);
-            Alert.alert('Success', 'Successfully connected to Google Calendar!');
-        } else if (response?.type === 'error') {
-            console.error('Auth Error:', response.error);
-            Alert.alert(
-                'Authentication Error',
-                `Failed to connect to Google Calendar: ${response.error?.message || 'Unknown error'}`
-            );
-        }
-    }, [response]);
+    
 
     // Обновляем дату начала события при выборе дня
     useEffect(() => {
@@ -240,76 +186,191 @@ export default function PlanScreen() {
         setEventModalVisible(true);
     };
 
+    // Загрузка событий из БД
+    const fetchEvents = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('events')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('start_time', { ascending: true });
+
+            if (error) {
+                console.error('Error fetching events:', error);
+                return;
+            }
+
+            // Преобразуем данные для отображения
+            const formattedEvents = data.map(event => ({
+                ...event,
+                start: new Date(event.start_time),
+                end: new Date(event.end_time)
+            }));
+
+            setCreatedEvents(formattedEvents);
+        } catch (err) {
+            console.error('Error in fetchEvents:', err);
+        }
+    };
+
+    // Загрузка событий при монтировании компонента
+    useEffect(() => {
+        if (user?.id) {
+            fetchEvents();
+        }
+    }, [user]);
+
     // Create event with loading state
     const createEvent = async () => {
-        if (!accessToken) {
-            Alert.alert('Authorization required', 'Please log in with Google first.');
-            return;
-        }
         if (!eventDetails.title) {
-            Alert.alert('Fill title', 'Please enter event title.');
-            return;
-        }
-        if (!eventDetails.startDate || !eventDetails.startTime || !eventDetails.endTime) {
-            Alert.alert('Fill time', 'Please select start and end times.');
+            Alert.alert('Error', 'Please enter event title');
             return;
         }
 
-        setIsLoading(true);
         try {
-            const startDateTime = buildISODateTime(eventDetails.startDate, eventDetails.startTime);
-            const endDateTime = buildISODateTime(eventDetails.startDate, eventDetails.endTime);
+            setIsLoading(true);
 
-            const response = await fetch(
-                'https://www.googleapis.com/calendar/v3/calendars/primary/events',
-                {
-                    method: 'POST',
-                    headers: {
-                        Authorization: `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        summary: eventDetails.title,
-                        description: eventDetails.description,
-                        start: { dateTime: startDateTime, timeZone: 'UTC' },
-                        end: { dateTime: endDateTime, timeZone: 'UTC' },
-                    }),
+            // Создаем полные timestamp'ы для начала и конца события
+            const startDateTime = new Date(eventDetails.startDate);
+            startDateTime.setHours(eventDetails.startTime.getHours());
+            startDateTime.setMinutes(eventDetails.startTime.getMinutes());
+            startDateTime.setSeconds(0);
+
+            const endDateTime = new Date(eventDetails.startDate);
+            endDateTime.setHours(eventDetails.endTime.getHours());
+            endDateTime.setMinutes(eventDetails.endTime.getMinutes());
+            endDateTime.setSeconds(0);
+
+            console.log('Saving event with:', {
+                start: startDateTime.toISOString(),
+                end: endDateTime.toISOString()
+            });
+
+            let calendarEventId = null;
+
+            // Создаем событие в календаре
+            try {
+                const { status } = await Calendar.requestCalendarPermissionsAsync();
+                if (status === 'granted') {
+                    const calendars = await Calendar.getCalendarsAsync();
+                    const googleCalendar = calendars.find(
+                        cal => cal.source?.name?.toLowerCase().includes('google') || 
+                              cal.source?.name?.toLowerCase().includes('gmail')
+                    );
+
+                    if (googleCalendar) {
+                        const calendarEvent = await Calendar.createEventAsync(googleCalendar.id, {
+                            title: eventDetails.title,
+                            notes: eventDetails.description,
+                            startDate: startDateTime,
+                            endDate: endDateTime,
+                            timeZone: 'UTC',
+                        });
+                        calendarEventId = calendarEvent;
+                        console.log('Created calendar event with ID:', calendarEventId);
+                    }
                 }
-            );
-
-            const data = await response.json();
-
-            if (response.ok) {
-                Alert.alert('Success', 'Event created successfully!');
-                setEventModalVisible(false);
-
-                setCreatedEvents((prev) => [
-                    ...prev,
-                    {
-                        id: data.id || Math.random().toString(),
-                        title: eventDetails.title,
-                        description: eventDetails.description,
-                        start: startDateTime,
-                        end: endDateTime,
-                        type: eventType,
-                    },
-                ]);
-
-                setEventDetails({
-                    title: '',
-                    description: '',
-                    startDate: null,
-                    startTime: new Date(),
-                    endTime: new Date(new Date().getTime() + 60 * 60 * 1000),
-                });
-            } else {
-                Alert.alert('Error', data.error?.message || 'Failed to create event');
+            } catch (calendarError) {
+                console.error('Error creating calendar event:', calendarError);
             }
+
+            // Сохраняем в Supabase
+            const { data, error } = await supabase
+                .from('events')
+                .insert([{
+                    user_id: user.id,
+                    title: eventDetails.title,
+                    description: eventDetails.description,
+                    start_time: startDateTime.toISOString(),
+                    end_time: endDateTime.toISOString(),
+                    type: eventType,
+                    calendar_event_id: calendarEventId
+                }])
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Error creating event:', error);
+                throw error;
+            }
+
+            // Добавляем в локальное состояние
+            setCreatedEvents(prev => [...prev, data]);
+
+            setEventModalVisible(false);
+            setEventDetails({
+                title: '',
+                description: '',
+                startDate: null,
+                startTime: new Date(),
+                endTime: new Date(new Date().getTime() + 60 * 60 * 1000),
+            });
+
+            Alert.alert('Success', 'Event added to calendar');
         } catch (e) {
-            Alert.alert('Error', 'Network or API error');
             console.error(e);
+            Alert.alert('Error', 'Failed to create event');
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    // Удаление события
+    const deleteEvent = async (eventId) => {
+        try {
+            // Получаем информацию о событии перед удалением
+            const { data: eventData, error: fetchError } = await supabase
+                .from('events')
+                .select('calendar_event_id')
+                .eq('id', eventId)
+                .single();
+
+            if (fetchError) throw fetchError;
+
+            // Удаляем из календаря, если есть ID события
+            if (eventData?.calendar_event_id) {
+                try {
+                    const { status } = await Calendar.requestCalendarPermissionsAsync();
+                    if (status === 'granted') {
+                        const calendars = await Calendar.getCalendarsAsync();
+                        const googleCalendar = calendars.find(
+                            cal => cal.source?.name?.toLowerCase().includes('google') || 
+                                  cal.source?.name?.toLowerCase().includes('gmail')
+                        );
+
+                        if (googleCalendar) {
+                            console.log('Deleting calendar event:', {
+                                calendarId: googleCalendar.id,
+                                eventId: eventData.calendar_event_id
+                            });
+                            
+                            // Удаляем событие из календаря
+                            await Calendar.deleteEventAsync(eventData.calendar_event_id);
+                            console.log('Successfully deleted calendar event');
+                        }
+                    }
+                } catch (calendarError) {
+                    console.error('Error deleting calendar event:', calendarError);
+                    // Продолжаем удаление из базы данных даже если не удалось удалить из календаря
+                }
+            }
+
+            // Удаляем из Supabase
+            const { error } = await supabase
+                .from('events')
+                .delete()
+                .eq('id', eventId)
+                .eq('user_id', user.id);
+
+            if (error) throw error;
+
+            // Удаляем из локального состояния
+            setCreatedEvents(prev => prev.filter(e => e.id !== eventId));
+
+            Alert.alert('Success', 'Event deleted successfully');
+        } catch (err) {
+            console.error('Error deleting event:', err);
+            Alert.alert('Error', 'Failed to delete event');
         }
     };
 
@@ -368,14 +429,43 @@ export default function PlanScreen() {
         }
     };
 
+    // Обработчик изменения даты
+    const onChangeDate = (event, selectedDate) => {
+        if (event.type === 'dismissed') {
+            setShowDatePicker(false);
+            return;
+        }
+        setShowDatePicker(false);
+        if (selectedDate) {
+            setEventDetails(prev => {
+                const newStartTime = new Date(selectedDate);
+                newStartTime.setHours(prev.startTime.getHours(), prev.startTime.getMinutes(), 0, 0);
+
+                const newEndTime = new Date(selectedDate);
+                newEndTime.setHours(prev.endTime.getHours(), prev.endTime.getMinutes(), 0, 0);
+
+                return {
+                    ...prev,
+                    startDate: selectedDate,
+                    startTime: newStartTime,
+                    endTime: newEndTime,
+                };
+            });
+        }
+    };
 
     // Форматируем дату/время для отображения
     const formatTime = (date) =>
         date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    const formatDate = (isoString) => {
-        const d = new Date(isoString);
-        return d.toLocaleString();
+    const formatDate = (date) => {
+        if (!date) return '';
+        return date.toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
     };
 
     // Filter events based on selected filter
@@ -393,33 +483,6 @@ export default function PlanScreen() {
         acc[type].push(event);
         return acc;
     }, {});
-
-    // Handle Google Calendar authentication
-    const handleGoogleAuth = async () => {
-        try {
-            setIsLoading(true);
-            const result = await promptAsync({
-                useProxy: true,
-                showInRecents: true,
-            });
-            
-            if (result.type === 'error') {
-                console.error('Auth Error:', result.error);
-                Alert.alert(
-                    'Authentication Error',
-                    `Failed to connect to Google Calendar: ${result.error?.message || 'Unknown error'}`
-                );
-            }
-        } catch (error) {
-            console.error('Auth Exception:', error);
-            Alert.alert(
-                'Authentication Error',
-                'An unexpected error occurred while connecting to Google Calendar'
-            );
-        } finally {
-            setIsLoading(false);
-        }
-    };
 
     const handleRemoveFromCart = async (ingredientId) => {
         try {
@@ -464,12 +527,6 @@ export default function PlanScreen() {
                     </TouchableOpacity>
                 </View>
             </View>
-
-            {/* Auth Status */}
-            <AuthStatus 
-                accessToken={accessToken} 
-                onPress={handleGoogleAuth} 
-            />
 
             {/* Days selector */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.days}>
@@ -537,17 +594,12 @@ export default function PlanScreen() {
                                     <View style={styles.eventHeader}>
                                         <Text style={styles.eventTitle}>{evt.title}</Text>
                                         <TouchableOpacity onPress={() => {
-                                            // TODO: Implement event deletion
                                             Alert.alert('Delete Event', 'Are you sure you want to delete this event?', [
                                                 { text: 'Cancel', style: 'cancel' },
                                                 { 
                                                     text: 'Delete', 
                                                     style: 'destructive',
-                                                    onPress: () => {
-                                                        setCreatedEvents(prev => 
-                                                            prev.filter(e => e.id !== evt.id)
-                                                        );
-                                                    }
+                                                    onPress: () => deleteEvent(evt.id)
                                                 }
                                             ]);
                                         }}>
@@ -555,7 +607,7 @@ export default function PlanScreen() {
                                         </TouchableOpacity>
                                     </View>
                                     <Text style={styles.eventTime}>
-                                        {formatDate(evt.start)} — {formatDate(evt.end)}
+                                        {formatDate(new Date(evt.start_time))} • {formatTime(new Date(evt.start_time))} — {formatTime(new Date(evt.end_time))}
                                     </Text>
                                     {evt.description ? (
                                         <Text style={styles.eventDescription}>{evt.description}</Text>
@@ -588,20 +640,40 @@ export default function PlanScreen() {
                             multiline
                         />
 
-                        {/* Дата не меняется, только время */}
-                        <Text style={{ marginTop: 8 }}>
-                            Date: {eventDetails.startDate ? eventDetails.startDate.toDateString() : ''}
-                        </Text>
+                        {/* Выбор даты */}
+                        <TouchableOpacity 
+                            onPress={() => setShowDatePicker(true)} 
+                            style={styles.datePickerBtn}
+                        >
+                            <Text style={styles.datePickerText}>
+                                Date: {formatDate(eventDetails.startDate)}
+                            </Text>
+                        </TouchableOpacity>
 
                         {/* Время начала */}
                         <TouchableOpacity onPress={() => setShowStartPicker(true)} style={styles.timePickerBtn}>
-                            <Text>Start Time: {formatTime(eventDetails.startTime)}</Text>
+                            <Text style={styles.timePickerText}>
+                                Start Time: {formatTime(eventDetails.startTime)}
+                            </Text>
                         </TouchableOpacity>
 
                         {/* Время окончания */}
                         <TouchableOpacity onPress={() => setShowEndPicker(true)} style={styles.timePickerBtn}>
-                            <Text>End Time: {formatTime(eventDetails.endTime)}</Text>
+                            <Text style={styles.timePickerText}>
+                                End Time: {formatTime(eventDetails.endTime)}
+                            </Text>
                         </TouchableOpacity>
+
+                        {/* DateTimePicker для даты */}
+                        {showDatePicker && (
+                            <DateTimePicker
+                                value={eventDetails.startDate || new Date()}
+                                mode="date"
+                                display="default"
+                                onChange={onChangeDate}
+                                minimumDate={new Date()} // Запрещаем выбор прошедших дат
+                            />
+                        )}
 
                         {/* DateTimePicker для времени */}
                         {showStartPicker && (
@@ -680,11 +752,11 @@ export default function PlanScreen() {
                         </ScrollView>
                         <View style={styles.cartActions}>
                             <TouchableOpacity
-                                style={[styles.btn, { backgroundColor: '#4CAF50' }]}
+                                style={[styles.btn, { backgroundColor: '#4CAF50', height: 50 }]}
                                 onPress={createShoppingEventFromCart}
                                 disabled={cartItems.length === 0}
                             >
-                                <Text style={styles.btnText}>Create Shopping Event</Text>
+                                <Text style={styles.btnText}>Create Event</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.btn, { backgroundColor: '#2196F3' }]}
@@ -755,11 +827,26 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         marginBottom: 10,
     },
-    timePickerBtn: {
+    datePickerBtn: {
         backgroundColor: '#f0f0f0',
-        padding: 10,
+        padding: 12,
         borderRadius: 8,
         marginTop: 6,
+        marginBottom: 6,
+    },
+    datePickerText: {
+        fontSize: 16,
+        color: '#333',
+    },
+    timePickerBtn: {
+        backgroundColor: '#f0f0f0',
+        padding: 12,
+        borderRadius: 8,
+        marginTop: 6,
+    },
+    timePickerText: {
+        fontSize: 16,
+        color: '#333',
     },
     modalButtons: {
         marginTop: 20,
@@ -772,8 +859,16 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderRadius: 8,
         alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: 140,
     },
-    btnText: { color: 'white', fontWeight: '700', fontSize: 16 },
+    btnText: { 
+        color: 'white', 
+        fontWeight: '700', 
+        fontSize: 16,
+        textAlign: 'center',
+        paddingHorizontal: 8,
+    },
 
     cartItem: {
         flexDirection: 'row',
@@ -806,6 +901,8 @@ const styles = StyleSheet.create({
     cartActions: {
         marginTop: 16,
         gap: 8,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
     },
     disabledButton: {
         opacity: 0.7,
