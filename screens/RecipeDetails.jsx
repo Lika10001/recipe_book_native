@@ -15,8 +15,10 @@ import { useUser } from '../context/UserContext';
 import { IconButton } from 'react-native-paper';
 import {Feather, FontAwesome, MaterialCommunityIcons, MaterialIcons} from "@expo/vector-icons";
 import { RecipeReviews } from "./Reviews/RecipeReviews";
+import SuggestedWorkoutCard from './SuggestedWorkoutCard';
+import ExerciseScreen from './ExerciseScreen';
 
-export default function RecipeDetails({ route }) {
+export default function RecipeDetails({ route, navigation }) {
     const { recipeId } = route.params;
     const [recipe, setRecipe] = useState(null);
     const [ingredients, setIngredients] = useState([]);
@@ -32,6 +34,7 @@ export default function RecipeDetails({ route }) {
         carbs: 0,
         fiber: 0
     });
+    const [suggestedWorkout, setSuggestedWorkout] = useState(null);
 
     console.log('Full user object:', user);
 
@@ -144,6 +147,55 @@ export default function RecipeDetails({ route }) {
         });
     };
 
+    const getSuggestedWorkout = async (calories) => {
+        try {
+            // Получаем все тренировки
+            const { data: workouts, error: workoutsError } = await supabase
+                .from('workouts')
+                .select('*');
+
+            if (workoutsError) throw workoutsError;
+
+            // Фильтруем тренировки по калориям
+            const suitableWorkouts = workouts.filter(workout => 
+                workout.calories_burnt >= calories * 0.8 && // Минимум 80% от калорий рецепта
+                workout.calories_burnt <= calories * 1.5    // Максимум 150% от калорий рецепта
+            );
+
+            if (suitableWorkouts.length === 0) {
+                // Если нет подходящих тренировок, берем самую эффективную
+                return workouts.sort((a, b) => b.calories_burnt - a.calories_burnt)[0];
+            }
+
+            // Сортируем тренировки по приоритету
+            const sortedWorkouts = suitableWorkouts.sort((a, b) => {
+                // Приоритет 1: Длительность (предпочитаем более короткие тренировки)
+                const durationScore = (b.duration_minutes - a.duration_minutes) * 2;
+
+                // Приоритет 2: Интенсивность (предпочитаем среднюю интенсивность)
+                const getIntensityScore = (intensity) => {
+                    switch (intensity?.toLowerCase()) {
+                        case 'medium': return 3;
+                        case 'low': return 2;
+                        case 'high': return 1;
+                        default: return 0;
+                    }
+                };
+                const intensityScore = getIntensityScore(b.intensity) - getIntensityScore(a.intensity);
+
+                // Приоритет 3: Эффективность сжигания калорий
+                const efficiencyScore = (b.calories_burnt / b.duration_minutes) - (a.calories_burnt / a.duration_minutes);
+
+                return durationScore + intensityScore + efficiencyScore;
+            });
+
+            return sortedWorkouts[0];
+        } catch (error) {
+            console.error('Error getting suggested workout:', error);
+            return null;
+        }
+    };
+
     useEffect(() => {
         async function fetchData() {
             try {
@@ -196,6 +248,13 @@ export default function RecipeDetails({ route }) {
 
                 // Получаем количество закладок
                 await updateBookmarksCount();
+
+                // Получаем подходящую тренировку
+                const suggestedWorkout = await getSuggestedWorkout(totalNutrition.calories);
+                if (suggestedWorkout) {
+                    setSuggestedWorkout(suggestedWorkout);
+                }
+
             } catch (err) {
                 console.error('Error in fetchData:', err);
                 setError(err.message);
@@ -452,6 +511,13 @@ export default function RecipeDetails({ route }) {
                                     </View>
                                 ))}
                             </View>
+
+                            {suggestedWorkout && (
+                                <SuggestedWorkoutCard
+                                    workout={suggestedWorkout}
+                                    onPress={() => navigation.navigate('Exercise', { exercise: suggestedWorkout })}
+                                />
+                            )}
                         </View>
 
                         <Text style={{ fontSize: 20, fontWeight: 'bold', marginVertical: 8 }}>
@@ -487,6 +553,7 @@ export default function RecipeDetails({ route }) {
 const styles = StyleSheet.create({
     container: {
         backgroundColor: '#fff',
+        paddingTop: 50,
     },
     imageContainer: {
         position: 'relative',
@@ -497,7 +564,7 @@ const styles = StyleSheet.create({
     },
     playButton: {
         position: 'absolute',
-        top: '40%',
+        top: '50%',
         left: '42%',
     },
     playIconCircle: {
@@ -511,14 +578,14 @@ const styles = StyleSheet.create({
     },
     backButton: {
         position: 'absolute',
-        top: 16,
+        top: 35,
         left: 16,
         backgroundColor: '#fff',
     },
     content: {
         paddingHorizontal: 20,
         paddingTop: 16,
-        paddingBottom: 30,
+        paddingBottom: 10,
     },
     title: {
         fontSize: 24,
@@ -533,7 +600,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginTop: 8,
+        marginTop: 4,
     },
     iconRow: {
         flexDirection: 'row',
@@ -611,7 +678,7 @@ const styles = StyleSheet.create({
     },
     quantityInput: {
         width: 50,
-        height: 36,
+        height: 38,
         borderWidth: 1,
         borderColor: '#ddd',
         borderRadius: 4,
@@ -622,6 +689,7 @@ const styles = StyleSheet.create({
     addButton: {
         backgroundColor: '#4c60ff',
         borderRadius: 4,
+        width: 40
     },
     nutritionInfo: {
         flexDirection: 'row',

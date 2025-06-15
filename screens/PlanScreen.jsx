@@ -701,9 +701,9 @@ export default function PlanScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, paddingTop: 40, backgroundColor: '#fff', paddingHorizontal: 16 },
-    header: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-    title: { fontSize: 24, fontWeight: 'bold', flex: 1 },
+    container: { flex: 1, paddingTop: 30, backgroundColor: '#fff', paddingHorizontal: 24 },
+    header: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, marginTop: 10, },
+    title: { fontSize: 26, fontWeight: 'bold', flex: 1 },
     days: { flexGrow: 0, marginBottom: 12 },
     day: {
         alignItems: 'center',

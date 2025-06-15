@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row',
         paddingHorizontal: 24,
-        paddingTop: 30,
+        paddingTop: 40,
         alignItems: 'center',
         marginBottom: 12,
     },
@@ -283,8 +283,8 @@ const styles = StyleSheet.create({
         marginTop: 6,
     },
     avatar: {
-        width: 48,
-        height: 48,
+        width: 55,
+        height: 55,
         borderRadius: 24,
         borderWidth: 2,
         borderColor: '#4c60ff',

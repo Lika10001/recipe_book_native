@@ -215,13 +215,13 @@ export default function ProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
     container: {
         backgroundColor: '#fff',
-        flex: 1
+        flex: 1,
+        paddingTop: 10,
     },
     header: {
-        fontSize: 24,
+        fontSize: 26,
         fontWeight: '600',
-        marginLeft: 20,
-        marginTop: 5,
+        marginLeft: 5,
         flex: 1
     },
     profileContainer: {

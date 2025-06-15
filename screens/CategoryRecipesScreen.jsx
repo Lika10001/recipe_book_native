@@ -75,6 +75,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 16,
         position: 'relative',
+        paddingTop: 30,
     },
     headerTitle: {
         position: 'absolute',

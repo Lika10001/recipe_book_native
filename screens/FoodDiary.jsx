@@ -558,13 +558,16 @@ const FoodDiary = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        paddingLeft: 24,
         padding: 16,
+        paddingTop: 30,
         backgroundColor: '#fff',
     },
     header: {
-        fontSize: 28,
+        fontSize: 26,
         fontWeight: 'bold',
         marginBottom: 8,
+        marginTop: 10,
         color: '#333',
     },
     dateRow: {

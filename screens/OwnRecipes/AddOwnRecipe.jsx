@@ -231,6 +231,7 @@ const styles = StyleSheet.create({
     container: {
         padding: 16,
         paddingBottom: 50,
+        paddingTop: 30,
     },
     input: {
         marginVertical: 8,

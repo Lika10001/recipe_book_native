@@ -14,6 +14,7 @@ import AddOwnRecipeScreen from "./OwnRecipes/AddOwnRecipe";
 import EditOwnRecipeScreen from "./OwnRecipes/EditOwnRecipeScreen";
 import OwnRecipeDetailsScreen from "./OwnRecipes/OwnRecipeDetailsScreen";
 import SearchScreen from "./SearchScreen";
+import ExerciseScreen from "./ExerciseScreen";
 
 const Stack = createNativeStackNavigator();
 console.log('Navigation component mounted');
@@ -46,6 +47,7 @@ export default function Navigation() {
             <Stack.Screen name="FilterModal" component={FilterModal} options={{ title: 'Filters' }} />
             <Stack.Screen name="AddOwnRecipe" component={AddOwnRecipeScreen} options={{ title: 'Add Recipe' }} />
             <Stack.Screen name="Search" component={SearchScreen} options={{ title: 'Search Recipes' }} />
+            <Stack.Screen name="Exercise" component={ExerciseScreen} options={{ title: 'Exercise' }} />
         </Stack.Navigator>
     );
 }

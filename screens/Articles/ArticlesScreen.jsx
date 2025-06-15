@@ -137,12 +137,14 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#FAFAFA',
+        paddingHorizontal: 5,
+        paddingTop: 30,
     },
     header: {
-        fontSize: 28,
+        fontSize: 26,
         fontWeight: 'bold',
         marginLeft: 16,
-        marginTop: 25,
+        marginTop: 10,
         color: '#1C1C1E',
     },
     listContainer: {

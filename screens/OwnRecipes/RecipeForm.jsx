@@ -227,6 +227,7 @@ const RecipeForm = ({ recipeId, onSave, initialData = null }) => {
 const styles = StyleSheet.create({
     container: {
         padding: 16,
+        paddingTop: 30,
         paddingBottom: 50,
     },
     input: {

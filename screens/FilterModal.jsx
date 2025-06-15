@@ -172,7 +172,7 @@ const FilterModal = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#fff', padding: 20 },
+    container: { flex: 1, backgroundColor: '#fff', padding: 20, paddingTop: 35, },
     filterSection: {
         borderWidth: 1,
         borderColor: '#4c60ff',
@@ -184,6 +184,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 8,
         elevation: 2,
+        
     },
     sectionTitle: {
         fontSize: 18,
