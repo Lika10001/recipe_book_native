@@ -230,21 +230,13 @@ export default function PlanScreen() {
         try {
             setIsLoading(true);
 
-            // Создаем полные timestamp'ы для начала и конца события
-            const startDateTime = new Date(eventDetails.startDate);
-            startDateTime.setHours(eventDetails.startTime.getHours());
-            startDateTime.setMinutes(eventDetails.startTime.getMinutes());
-            startDateTime.setSeconds(0);
+            const startDateTime = buildISODateTime(eventDetails.startDate, eventDetails.startTime);
+            const endDateTime = buildISODateTime(eventDetails.startDate, eventDetails.endTime);
 
-            const endDateTime = new Date(eventDetails.startDate);
-            endDateTime.setHours(eventDetails.endTime.getHours());
-            endDateTime.setMinutes(eventDetails.endTime.getMinutes());
-            endDateTime.setSeconds(0);
-
-            console.log('Saving event with:', {
-                start: startDateTime.toISOString(),
-                end: endDateTime.toISOString()
-            });
+            if (!startDateTime || !endDateTime) {
+                alert('Please select both start and end times');
+                return;
+            }
 
             let calendarEventId = null;
 
@@ -262,8 +254,8 @@ export default function PlanScreen() {
                         const calendarEvent = await Calendar.createEventAsync(googleCalendar.id, {
                             title: eventDetails.title,
                             notes: eventDetails.description,
-                            startDate: startDateTime,
-                            endDate: endDateTime,
+                            startDate: new Date(startDateTime),
+                            endDate: new Date(endDateTime),
                             timeZone: 'UTC',
                         });
                         calendarEventId = calendarEvent;
@@ -277,26 +269,27 @@ export default function PlanScreen() {
             // Сохраняем в Supabase
             const { data, error } = await supabase
                 .from('events')
-                .insert([{
-                    user_id: user.id,
-                    title: eventDetails.title,
-                    description: eventDetails.description,
-                    start_time: startDateTime.toISOString(),
-                    end_time: endDateTime.toISOString(),
-                    type: eventType,
-                    calendar_event_id: calendarEventId
-                }])
+                .insert([
+                    {
+                        user_id: user.id,
+                        title: eventDetails.title,
+                        description: eventDetails.description,
+                        start_time: startDateTime,
+                        end_time: endDateTime,
+                        type: eventDetails.type || 'cook',
+                        calendar_event_id: calendarEventId
+                    }
+                ])
                 .select()
                 .single();
 
             if (error) {
                 console.error('Error creating event:', error);
-                throw error;
+                alert('Error creating event: ' + error.message);
+                return;
             }
 
-            // Добавляем в локальное состояние
             setCreatedEvents(prev => [...prev, data]);
-
             setEventModalVisible(false);
             setEventDetails({
                 title: '',
@@ -304,12 +297,13 @@ export default function PlanScreen() {
                 startDate: null,
                 startTime: new Date(),
                 endTime: new Date(new Date().getTime() + 60 * 60 * 1000),
+                type: null
             });
 
             Alert.alert('Success', 'Event added to calendar');
-        } catch (e) {
-            console.error(e);
-            Alert.alert('Error', 'Failed to create event');
+        } catch (err) {
+            console.error('Error in createEvent:', err);
+            alert('Error creating event');
         } finally {
             setIsLoading(false);
         }

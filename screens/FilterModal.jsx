@@ -46,6 +46,8 @@ const RatingFilter = ({ value, onValueChange }) => {
 };
 
 const TimeFilter = ({ value, onValueChange }) => {
+    const [tempValue, setTempValue] = useState(value);
+
     return (
         <View style={styles.timeContainer}>
             <Slider
@@ -54,12 +56,13 @@ const TimeFilter = ({ value, onValueChange }) => {
                 maximumValue={120}
                 step={5}
                 value={value}
-                onValueChange={onValueChange}
+                onValueChange={setTempValue}
+                onSlidingComplete={onValueChange}
                 minimumTrackTintColor="#4c60ff"
                 maximumTrackTintColor="#ddd"
                 thumbTintColor="#4c60ff"
             />
-            <Text style={styles.timeValue}>{value} min</Text>
+            <Text style={styles.timeValue}>{tempValue} min</Text>
         </View>
     );
 };
@@ -172,7 +175,7 @@ const FilterModal = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#fff', padding: 20, paddingTop: 35, },
+    container: { flex: 1, backgroundColor: '#fff', padding: 20, paddingTop: 30},
     filterSection: {
         borderWidth: 1,
         borderColor: '#4c60ff',
@@ -203,6 +206,7 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 20,
         fontWeight: '700',
+        marginTop: 20,
     },
     ratingContainer: {
         marginBottom: 10,

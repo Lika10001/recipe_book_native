@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet, Platform } from 'react-native';
 import { TextInput, Button, Text, Chip } from 'react-native-paper';
 import { supabase } from '../../supabaseClient';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { Image } from 'react-native';
 import { useUser } from '../../context/UserContext';
 
@@ -46,7 +47,7 @@ const RecipeForm = ({ recipeId, onSave, initialData = null }) => {
     };
 
     const uploadImage = async () => {
-        if (!imageUri) return initialData?.image_url || null;
+        if (!imageUri) return null;
         
         // Если это URL, а не локальный файл, значит изображение уже загружено
         if (imageUri.startsWith('http')) {
@@ -55,16 +56,38 @@ const RecipeForm = ({ recipeId, onSave, initialData = null }) => {
 
         try {
             setUploading(true);
-            const response = await fetch(imageUri);
-            const blob = await response.blob();
+            console.log('Starting image upload for URI:', imageUri);
+
+            // Создаем временный файл
+            const tempFileUri = `${FileSystem.cacheDirectory}temp_${Date.now()}.jpg`;
+            await FileSystem.copyAsync({
+                from: imageUri,
+                to: tempFileUri
+            });
+
+            console.log('Copied to temp file:', tempFileUri);
+
+            // Читаем файл как base64
+            const base64 = await FileSystem.readAsStringAsync(tempFileUri, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+
+            // Удаляем временный файл
+            await FileSystem.deleteAsync(tempFileUri);
 
             const fileName = `${user.id}/${Date.now()}-recipe.jpg`;
-            
             console.log('Uploading image:', fileName);
 
+            // Конвертируем base64 в Uint8Array
+            const binaryString = atob(base64);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+
             const { data, error } = await supabase.storage
-                .from('recipes')
-                .upload(fileName, blob, {
+                .from('ownrecipes')
+                .upload(fileName, bytes, {
                     contentType: 'image/jpeg',
                     upsert: true
                 });
@@ -77,7 +100,7 @@ const RecipeForm = ({ recipeId, onSave, initialData = null }) => {
             console.log('Upload successful:', data);
 
             const { data: { publicUrl } } = supabase.storage
-                .from('recipes')
+                .from('ownrecipes')
                 .getPublicUrl(fileName);
 
             console.log('Public URL:', publicUrl);
@@ -104,7 +127,15 @@ const RecipeForm = ({ recipeId, onSave, initialData = null }) => {
 
         try {
             setUploading(true);
-            const imageUrl = await uploadImage();
+            let imageUrl = initialData?.image_url || null;
+            
+            // Загружаем новое изображение только если оно было изменено
+            if (imageUri && imageUri !== initialData?.image_url) {
+                imageUrl = await uploadImage();
+                if (!imageUrl) {
+                    throw new Error('Failed to upload image');
+                }
+            }
 
             const recipeData = {
                 user_id: user.id,

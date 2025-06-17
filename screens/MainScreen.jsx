@@ -22,8 +22,9 @@ const MainScreen = ({navigation}) => {
         setLoading(true);
         const {data, error} = await supabase.from('recipes').select('*');
         if (error) {
-            console.error('Ошибка загрузки рецептов:', error);
+            console.error('Error loading recipes:', error);
         } else {
+            console.log('Loaded recipes:', data);
             setRecipes(data);
         }
         setLoading(false);
@@ -43,7 +44,7 @@ const MainScreen = ({navigation}) => {
                 .limit(10);
 
             if (error) {
-                console.error('Ошибка получения трендовых рецептов:', error.message);
+                console.error('Error getting trending recipes:', error.message);
                 return;
             }
             setTrending(recipesData);
@@ -56,7 +57,7 @@ const MainScreen = ({navigation}) => {
                 .limit(10);
 
             if (error) {
-                console.error('Ошибка при загрузке ингредиентов:', error);
+                console.error('Error loading ingredients:', error);
             } else {
                 setIngredients(data);
             }
@@ -68,7 +69,7 @@ const MainScreen = ({navigation}) => {
                 .select('*');
 
             if (error) {
-                console.error('Ошибка получения категорий:', error.message);
+                console.error('Error loading categories:', error.message);
                 return;
             }
             setCategories(categoriesData);
@@ -80,7 +81,7 @@ const MainScreen = ({navigation}) => {
                 .select('*');
 
             if (catError) {
-                console.error('Ошибка получения категорий:', catError.message);
+                console.error('Error loading categories:', catError.message);
                 return;
             }
 
@@ -143,7 +144,7 @@ const MainScreen = ({navigation}) => {
                                 style={{ margin: 20, padding: 12, backgroundColor: '#4c60ff', borderRadius: 10 }}
                                 onPress={() => navigation.navigate('FilterModal', { ingredients })}
                             >
-                                <Text style={{ color: '#fff', textAlign: 'center', fontWeight: 'bold' }}>Filters</Text>
+                                <Text style={{ color: '#fff', textAlign: 'center', fontWeight: 'bold' }}>Filter Recipes</Text>
                             </TouchableOpacity>
                         </View>
                         {/* Ingredient icons */}
@@ -176,8 +177,8 @@ const MainScreen = ({navigation}) => {
 
                         {/* New recipes */}
                         <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>New recipes</Text>
-                            <TouchableOpacity><Text style={styles.seeAll}>See all</Text></TouchableOpacity>
+                            <Text style={styles.sectionTitle}>New Recipes</Text>
+                            <TouchableOpacity><Text style={styles.seeAll}>View All</Text></TouchableOpacity>
                         </View>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalList}>
                             {filteredRecipes.slice(0, 3).map((recipe, index) => (
@@ -186,7 +187,7 @@ const MainScreen = ({navigation}) => {
                                     <Image source={{uri: recipe.image}} style={styles.recipeImage}/>
                                     <View style={styles.recipeOverlay}>
                                         <AntDesign name="clockcircleo" size={14} color="#fff"/>
-                                        <Text style={styles.recipeMeta}>{recipe.cooking_time || 15}’</Text>
+                                        <Text style={styles.recipeMeta}>{recipe.cooking_time || 15} min</Text>
                                     </View>
                                     <Text style={styles.recipeName}>{recipe.name}</Text>
                                 </TouchableOpacity>
@@ -196,7 +197,7 @@ const MainScreen = ({navigation}) => {
                         {/* Video recipes */}
                         <View style={styles.sectionHeader}>
                             <Text style={styles.sectionTitle}>Get Inspired</Text>
-                            <TouchableOpacity><Text style={styles.seeAll}>See all</Text></TouchableOpacity>
+                            <TouchableOpacity><Text style={styles.seeAll}>View All</Text></TouchableOpacity>
                         </View>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalList}>
                             {filteredRecipes.slice(3, 6).map((recipe, index) => (
@@ -205,7 +206,7 @@ const MainScreen = ({navigation}) => {
                                     <Image source={{uri: recipe.image}} style={styles.recipeImage}/>
                                     <View style={styles.recipeOverlay}>
                                         <AntDesign name="clockcircleo" size={14} color="#fff"/>
-                                        <Text style={styles.recipeMeta}>{recipe.cooking_time || 20}’</Text>
+                                        <Text style={styles.recipeMeta}>{recipe.cooking_time || 20} min</Text>
                                     </View>
                                     <Text style={styles.recipeName}>{recipe.name}</Text>
                                 </TouchableOpacity>
@@ -233,8 +234,8 @@ const MainScreen = ({navigation}) => {
                     </ScrollView>
                     {/* Trending */}
                     <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>Trending</Text>
-                        <Text style={styles.lengthText}>{trending.length}</Text>
+                        <Text style={styles.sectionTitle}>Trending Now</Text>
+                        <Text style={styles.lengthText}>{trending.length} recipes</Text>
                     </View>
                     <View style={{ paddingHorizontal: 24 }}>
                         {trending.map((item, index) => (

@@ -20,7 +20,7 @@ export default function EditProfileScreen({ navigation }) {
     const pickAvatar = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-            Alert.alert('Разрешение нужно', 'Доступ к галерее обязателен');
+            Alert.alert('Permission needed', 'Access to gallery is required');
             return;
         }
 
@@ -56,7 +56,7 @@ export default function EditProfileScreen({ navigation }) {
 
             if (uploadError) {
                 console.error('Upload error:', uploadError);
-                Alert.alert('Ошибка загрузки', uploadError.message);
+                Alert.alert('Upload error', uploadError.message);
                 return;
             }
 
@@ -75,16 +75,16 @@ export default function EditProfileScreen({ navigation }) {
 
             if (updateError) {
                 console.error('Update error:', updateError);
-                Alert.alert('Ошибка БД', updateError.message);
+                Alert.alert('Database error', updateError.message);
                 return;
             }
 
             setAvatar(publicUrl);
             setUser({ ...user, avatar: publicUrl });
-            Alert.alert('Успех', 'Аватар успешно обновлен');
+            Alert.alert('Success', 'Avatar updated successfully');
         } catch (err) {
             console.error('Error in pickAvatar:', err);
-            Alert.alert('Ошибка', err.message);
+            Alert.alert('Error', err.message);
         }
     };
 
@@ -95,7 +95,7 @@ export default function EditProfileScreen({ navigation }) {
             .eq('id', user.id);
 
         if (error) {
-            Alert.alert('Ошибка', error.message);
+            Alert.alert('Error', error.message);
         } else {
             setUser({ ...user, username, bio, avatar });
             navigation.goBack();
@@ -104,17 +104,17 @@ export default function EditProfileScreen({ navigation }) {
 
     const handleDeleteAccount = async () => {
         Alert.alert(
-            'Удалить аккаунт',
-            'Вы точно хотите удалить аккаунт? Это действие необратимо.',
+            'Delete account',
+            'Are you sure you want to delete your account? This action is irreversible.',
             [
-                { text: 'Отмена', style: 'cancel' },
+                { text: 'Cancel', style: 'cancel' },
                 {
-                    text: 'Удалить',
+                    text: 'Delete',
                     style: 'destructive',
                     onPress: async () => {
                         const { error } = await supabase.auth.admin.deleteUser(user.id);
                         if (error) {
-                            Alert.alert('Ошибка удаления', error.message);
+                            Alert.alert('Error deleting', error.message);
                         } else {
                             setUser(null);
                             navigation.reset({

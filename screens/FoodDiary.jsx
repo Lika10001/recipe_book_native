@@ -9,7 +9,7 @@ import {
     Modal,
     Pressable, ScrollView,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useUser } from '../context/UserContext';
 import { supabase } from '../supabaseClient';
 
@@ -106,28 +106,40 @@ const FoodDiary = () => {
                 let totalCarbs = 0;
                 let totalFiber = 0;
 
-                recipe.recipes_ingredients?.forEach(item => {
-                    const ingredient = item.ingredients;
-                    const quantity = item.quantity;
-                    
-                    // Переводим количество в граммы/мл если нужно
-                    let normalizedQuantity = quantity;
-                    if (ingredient.unit === 'ml' || ingredient.unit === 'g') {
-                        normalizedQuantity = quantity;
-                    } else if (ingredient.unit === 'kg' || ingredient.unit === 'l') {
-                        normalizedQuantity = quantity * 1000;
-                    } else if (ingredient.unit === 'tbsp') {
-                        normalizedQuantity = quantity * 15;
-                    } else if (ingredient.unit === 'tsp') {
-                        normalizedQuantity = quantity * 5;
-                    }
+                if (recipe.recipes_ingredients && Array.isArray(recipe.recipes_ingredients)) {
+                    recipe.recipes_ingredients.forEach(item => {
+                        if (!item.ingredients) return;
 
-                    const multiplier = normalizedQuantity / 100;
-                    totalCalories += (ingredient.calories || 0) * multiplier;
-                    totalProteins += (ingredient.proteins || 0) * multiplier;
-                    totalCarbs += (ingredient.carbs || 0) * multiplier;
-                    totalFiber += (ingredient.fiber || 0) * multiplier;
-                });
+                        const ingredient = item.ingredients;
+                        const quantity = parseFloat(item.quantity) || 0;
+                        
+                        // Переводим количество в граммы/мл если нужно
+                        let normalizedQuantity = quantity;
+                        switch (ingredient.unit?.toLowerCase()) {
+                            case 'kg':
+                            case 'l':
+                                normalizedQuantity = quantity * 1000;
+                                break;
+                            case 'tbsp':
+                                normalizedQuantity = quantity * 15;
+                                break;
+                            case 'tsp':
+                                normalizedQuantity = quantity * 5;
+                                break;
+                            case 'g':
+                            case 'ml':
+                            default:
+                                normalizedQuantity = quantity;
+                        }
+
+                        // Считаем нутриенты на основе количества
+                        const multiplier = normalizedQuantity / 100; // Все значения в БД на 100г/мл
+                        totalCalories += (parseFloat(ingredient.calories) || 0) * multiplier;
+                        totalProteins += (parseFloat(ingredient.proteins) || 0) * multiplier;
+                        totalCarbs += (parseFloat(ingredient.carbs) || 0) * multiplier;
+                        totalFiber += (parseFloat(ingredient.fiber) || 0) * multiplier;
+                    });
+                }
 
                 return {
                     ...recipe,
@@ -138,6 +150,7 @@ const FoodDiary = () => {
                 };
             });
 
+            console.log('Recipes with calculated nutrition:', recipesWithNutrition);
             setRecipes(recipesWithNutrition);
         }
     };
@@ -417,13 +430,13 @@ const FoodDiary = () => {
             {/* Дата с кнопками назад/вперед */}
             <View style={styles.dateRow}>
                 <TouchableOpacity onPress={() => changeDate(-1)} style={styles.dateButton}>
-                    <Icon name="chevron-left" size={30} color="#ff6347" />
+                    <MaterialCommunityIcons name="chevron-left" size={30} color="#ff6347" />
                 </TouchableOpacity>
                 <Text style={styles.date}>
                     {date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                 </Text>
                 <TouchableOpacity onPress={() => changeDate(1)} style={styles.dateButton}>
-                    <Icon name="chevron-right" size={30} color="#ff6347" />
+                    <MaterialCommunityIcons name="chevron-right" size={30} color="#ff6347" />
                 </TouchableOpacity>
             </View>
 
@@ -472,7 +485,7 @@ const FoodDiary = () => {
                 <React.Fragment key={mealType}>
                     <View style={styles.mealSection}>
                         <View style={styles.mealTitleRow}>
-                            <Icon
+                            <MaterialCommunityIcons
                                 name={mealIcons[mealType]}
                                 size={24}
                                 color="#4c60ff"
@@ -490,7 +503,7 @@ const FoodDiary = () => {
                                     style={styles.removeButton}
                                     onPress={() => removeMeal(mealType)}
                                 >
-                                    <Icon name="close-circle" size={24} color="#ff6347" />
+                                    <MaterialCommunityIcons name="close-circle" size={24} color="#ff6347" />
                                 </TouchableOpacity>
                             </View>
                         ) : (

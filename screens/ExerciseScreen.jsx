@@ -133,6 +133,20 @@ export default function ExerciseScreen({ route, navigation }) {
             ))}
           </Card.Content>
         </Card>
+
+        {exercise?.steps && exercise.steps.length > 0 && (
+          <Card style={[styles.tipsCard, { marginTop: 16 }]}>
+            <Card.Content>
+              <Text style={styles.sectionTitle}>Steps</Text>
+              {exercise.steps.map((step, index) => (
+                <View key={index} style={styles.stepContainer}>
+                  <Text style={styles.stepNumber}>{index + 1}</Text>
+                  <Text style={styles.stepText}>{step}</Text>
+                </View>
+              ))}
+            </Card.Content>
+          </Card>
+        )}
       </View>
     </ScrollView>
   );
@@ -164,6 +178,29 @@ const styles = StyleSheet.create({
     },
     sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 12, color: '#231942' },
     tipText: { fontSize: 16, color: '#4B3D69', marginBottom: 6 },
+    stepContainer: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      marginBottom: 12,
+    },
+    stepNumber: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      backgroundColor: '#4c60ff',
+      color: '#fff',
+      textAlign: 'center',
+      lineHeight: 24,
+      fontSize: 14,
+      fontWeight: 'bold',
+      marginRight: 12,
+    },
+    stepText: {
+      flex: 1,
+      fontSize: 16,
+      color: '#4B3D69',
+      lineHeight: 24,
+    },
     startButton: {
       backgroundColor: '#4c60ff',
       paddingVertical: 14,

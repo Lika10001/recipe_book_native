@@ -14,7 +14,7 @@ export default function ArticleDetail({ route }) {
     const [reviews, setReviews] = useState([
 
         { userId: 'user1', username: 'Ann', avatar: null, rating: 5, text: 'Excellent article, very useful!' },
-        { userId: 'user2', username: 'Ivan', avatar: null, rating: 4, text: 'Interesting, but I would like more details.' },
+        { userId: 'user2', username: 'Ivan', avatar: null, rating: 3, text: 'Interesting, but I would like more details.' },
     ]);
 
     const handleRating = (selectedRating) => {

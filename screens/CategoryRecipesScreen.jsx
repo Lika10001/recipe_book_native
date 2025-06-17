@@ -11,15 +11,27 @@ const CategoryRecipesScreen = ({ route, navigation }) => {
         const fetchCategoryRecipes = async () => {
             const { data, error } = await supabase
                 .from('recipe_categories')
-                .select('*, recipe_id(*)')
+                .select(`
+                    *,
+                    recipe_id (
+                        *,
+                        recipes_ingredients (count)
+                    )
+                `)
                 .eq('category_id', categoryId);
 
             if (error) {
-                console.error(error);
+                console.error('Error fetching category recipes:', error);
                 return;
             }
 
-            setRecipes(data.map(item => item.recipe_id));
+            // Transform the data to include ingredients count
+            const transformedRecipes = data.map(item => ({
+                ...item.recipe_id,
+                ingredients_count: item.recipe_id.recipes_ingredients?.[0]?.count || 0
+            }));
+
+            setRecipes(transformedRecipes);
         };
 
         fetchCategoryRecipes();
@@ -32,11 +44,11 @@ const CategoryRecipesScreen = ({ route, navigation }) => {
             <View style={styles.overlayIcons}>
                 <View style={styles.iconRow}>
                     <Ionicons name="time-outline" size={16} color="white" />
-                    <Text style={styles.iconText}>{item.time || '30'}’</Text>
+                    <Text style={styles.iconText}>{item.cooking_time || '30'} min</Text>
                 </View>
                 <View style={styles.iconRow}>
                     <Ionicons name="leaf-outline" size={16} color="white" />
-                    <Text style={styles.iconText}>{item.ingredients?.length || 7}</Text>
+                    <Text style={styles.iconText}>{item.ingredients_count || 0} ingredients</Text>
                 </View>
             </View>
             {/* Bottom info */}

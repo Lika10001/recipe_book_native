@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet, Platform } from 'react-native';
 import { TextInput, Button, Text, IconButton, Chip } from 'react-native-paper';
 import { supabase } from '../../supabaseClient';
 import * as ImagePicker from 'expo-image-picker';
@@ -50,27 +50,39 @@ const AddOwnRecipeScreen = ({navigation}) => {
 
         try {
             setUploading(true);
-            const response = await fetch(imageUri);
-            const blob = await response.blob();
-
-            const fileName = `${user.id}/${Date.now()}-recipe.jpg`;
+            console.log('Starting image upload process...');
+            console.log('Image URI:', imageUri);
             
-            console.log('Uploading image:', fileName);
+            const fileName = `${user.id}/${Date.now()}-recipe.jpg`;
+            console.log('Generated filename:', fileName);
 
-            const { data, error } = await supabase.storage
+            // Получаем файл
+            console.log('Fetching image file...');
+            const response = await fetch(imageUri);
+            console.log('Fetch response status:', response.status);
+            
+            console.log('Converting to blob...');
+            const blob = await response.blob();
+            console.log('Blob size:', blob.size, 'bytes');
+
+            // Загружаем файл
+            console.log('Uploading to Supabase...');
+            const { data: uploadData, error: uploadError } = await supabase.storage
                 .from('recipes')
                 .upload(fileName, blob, {
                     contentType: 'image/jpeg',
                     upsert: true
                 });
 
-            if (error) {
-                console.error('Upload error:', error);
-                throw error;
+            if (uploadError) {
+                console.error('Upload error:', uploadError);
+                throw uploadError;
             }
 
-            console.log('Upload successful:', data);
+            console.log('Upload successful:', uploadData);
 
+            // Получаем публичный URL
+            console.log('Getting public URL...');
             const { data: { publicUrl } } = supabase.storage
                 .from('recipes')
                 .getPublicUrl(fileName);
@@ -79,6 +91,11 @@ const AddOwnRecipeScreen = ({navigation}) => {
             return publicUrl;
         } catch (error) {
             console.error('Image upload failed:', error);
+            console.error('Error details:', {
+                message: error.message,
+                code: error.code,
+                details: error.details
+            });
             alert('Failed to upload image: ' + error.message);
             return null;
         } finally {

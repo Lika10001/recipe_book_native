@@ -8,6 +8,7 @@ import {
     ActivityIndicator,
     TouchableOpacity, FlatList,
     TextInput,
+    Alert,
 } from 'react-native';
 import {Button, Card, Chip} from 'react-native-paper';
 import { supabase } from '../supabaseClient';
@@ -35,8 +36,6 @@ export default function RecipeDetails({ route, navigation }) {
         fiber: 0
     });
     const [suggestedWorkout, setSuggestedWorkout] = useState(null);
-
-    console.log('Full user object:', user);
 
     useEffect(() => {
         console.log('User data in RecipeDetails:', user);
@@ -78,18 +77,42 @@ export default function RecipeDetails({ route, navigation }) {
             return;
         }
 
-        if (reviewsData.length > 0) {
-            const averageRating = reviewsData.reduce((acc, curr) => acc + curr.rating, 0) / reviewsData.length;
+        console.log('All reviews data:', reviewsData);
+
+        if (reviewsData && reviewsData.length > 0) {
+            const totalRating = reviewsData.reduce((acc, curr) => acc + (curr.rating || 0), 0);
+            const averageRating = totalRating / reviewsData.length;
+            
+            console.log('Total rating:', totalRating);
+            console.log('Number of reviews:', reviewsData.length);
+            console.log('Calculated average rating:', averageRating);
+            console.log('Rounded average rating:', parseFloat(averageRating.toFixed(1)));
             
             const { error: updateError } = await supabase
                 .from('recipes')
-                .update({ rating: averageRating })
+                .update({ rating: parseFloat(averageRating.toFixed(1)) })
                 .eq('id', recipeId);
 
             if (updateError) {
                 console.error('Error updating recipe rating:', updateError);
             } else {
-                setRecipe(prev => ({ ...prev, rating: averageRating }));
+                setRecipe(prev => {
+                    console.log('Previous recipe rating:', prev?.rating);
+                    console.log('New recipe rating:', parseFloat(averageRating.toFixed(1)));
+                    return { ...prev, rating: parseFloat(averageRating.toFixed(1)) };
+                });
+            }
+        } else {
+            console.log('No reviews found, setting rating to 0');
+            const { error: updateError } = await supabase
+                .from('recipes')
+                .update({ rating: 0 })
+                .eq('id', recipeId);
+
+            if (updateError) {
+                console.error('Error updating recipe rating:', updateError);
+            } else {
+                setRecipe(prev => ({ ...prev, rating: 0 }));
             }
         }
     };
@@ -224,12 +247,28 @@ export default function RecipeDetails({ route, navigation }) {
                     supabase.from('favorites').select('*').eq('user_id', user?.id).eq('recipe_id', recipeId),
                 ]);
 
+                console.log('Recipe response:', recipeRes);
                 console.log('Favorite response:', favoriteRes);
 
                 if (recipeRes.error) throw recipeRes.error;
                 if (ingredientsRes.error) throw ingredientsRes.error;
 
-                setRecipe(recipeRes.data);
+                console.log('Recipe data:', recipeRes.data);
+                console.log('Ingredients data:', ingredientsRes.data);
+
+                // Обновляем рейтинг перед установкой данных рецепта
+                await updateRecipeRating();
+                
+                // Получаем обновленные данные рецепта
+                const { data: updatedRecipe, error: updateError } = await supabase
+                    .from('recipes')
+                    .select('*')
+                    .eq('id', recipeId)
+                    .single();
+
+                if (updateError) throw updateError;
+
+                setRecipe(updatedRecipe);
                 if (ingredientsRes.data?.length) {
                     setIngredients(ingredientsRes.data);
                     calculateTotalNutrition(ingredientsRes.data);
@@ -322,11 +361,22 @@ export default function RecipeDetails({ route, navigation }) {
 
     const handleAddToCart = async (ingredient) => {
         if (!user?.id) {
-            alert('Login to the system');
+            Alert.alert(
+                'Authentication Required',
+                'Please login to add ingredients to cart'
+            );
             return;
         }
 
         const quantity = selectedQuantity[ingredient.id] || ingredient.quantity || 1;
+        
+        if (quantity <= 0) {
+            Alert.alert(
+                'Invalid Quantity',
+                'Quantity must be greater than 0'
+            );
+            return;
+        }
 
         try {
             console.log('Adding to cart:', { 
@@ -345,28 +395,48 @@ export default function RecipeDetails({ route, navigation }) {
 
             if (error) {
                 console.error('Error adding to cart:', error);
-                alert('Error adding to cart');
+                Alert.alert(
+                    'Error',
+                    'Failed to add ingredient to cart. Please try again.'
+                );
                 return;
             }
 
-            alert('Added to cart');
+            Alert.alert(
+                'Success',
+                'Successfully added to shopping cart'
+            );
             setSelectedQuantity(prev => ({ ...prev, [ingredient.id]: undefined }));
         } catch (err) {
             console.error('Error adding to cart:', err);
-            alert('Error adding to cart');
+            Alert.alert(
+                'Error',
+                'Failed to add ingredient to cart. Please try again.'
+            );
         }
     };
 
     const handleQuantityChange = (ingredientId, value) => {
+        if (value === '') {
+            setSelectedQuantity(prev => {
+                const newState = { ...prev };
+                delete newState[ingredientId];
+                return newState;
+            });
+            return;
+        }
         const numValue = parseInt(value) || 0;
-        if (numValue > 0) {
+        if (numValue >= 0) {
             setSelectedQuantity(prev => ({ ...prev, [ingredientId]: numValue }));
         }
     };
 
     const handleFavorite = async () => {
         if (!user?.id) {
-            alert('Login to the system');
+            Alert.alert(
+                'Authentication Required',
+                'Please login to add recipes to favorites'
+            );
             return;
         }
 
@@ -393,7 +463,10 @@ export default function RecipeDetails({ route, navigation }) {
             }
         } catch (err) {
             console.error('Favorite error:', err);
-            alert('Error: ' + err.message);
+            Alert.alert(
+                'Error',
+                'Failed to update favorites. Please try again.'
+            );
         }
     };
 
@@ -435,7 +508,7 @@ export default function RecipeDetails({ route, navigation }) {
                                 <TextInput
                                     style={styles.quantityInput}
                                     keyboardType="numeric"
-                                    value={selectedQuantity[item?.ingredients?.id]?.toString() || item?.quantity?.toString()}
+                                    value={selectedQuantity[item?.ingredients?.id]?.toString() || ''}
                                     onChangeText={(value) => handleQuantityChange(item?.ingredients?.id, value)}
                                     placeholder={item?.quantity?.toString()}
                                 />
@@ -470,15 +543,29 @@ export default function RecipeDetails({ route, navigation }) {
 
                             <View style={styles.rowBetween}>
                                 <View style={styles.row}>
-                                    {Array(5).fill().map((_, i) => (
-                                        <MaterialCommunityIcons
-                                            key={i}
-                                            name={i < Math.floor(recipe?.rating || 0) ? "star" : i < (recipe?.rating || 0) ? "star-half-full" : "star-outline"}
-                                            size={28}
-                                            color="#FFD700"
-                                        />
-                                    ))}
-                                    <Text style={{ marginLeft: 8, fontSize: 16 }}>{(recipe?.rating || 0).toFixed(1)}</Text>
+                                    {Array(5).fill().map((_, i) => {
+                                        const starValue = i + 1;
+                                        const rating = parseFloat(recipe?.rating) || 0;
+                                        
+                                        let iconName = "star-outline";
+                                        if (rating >= starValue) {
+                                            iconName = "star";
+                                        } else if (rating >= starValue - 0.5) {
+                                            iconName = "star-half-full";
+                                        }
+
+                                        return (
+                                            <MaterialCommunityIcons
+                                                key={i}
+                                                name={iconName}
+                                                size={28}
+                                                color="#FFD700"
+                                            />
+                                        );
+                                    })}
+                                    <Text style={{ marginLeft: 8, fontSize: 16 }}>
+                                        {parseFloat(recipe?.rating || 0).toFixed(1)}
+                                    </Text>
                                 </View>
 
                                 <View style={styles.iconRow}>

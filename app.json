@@ -5,7 +5,6 @@
     "version": "1.0.0",
     "scheme": "recipebook",
     "orientation": "portrait",
-    "entryPoint": "./App.js",
     "platforms": [
       "ios",
       "android",
