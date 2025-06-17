@@ -20,14 +20,18 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.likahomik.recipebook"
+      "bundleIdentifier": "com.likahomik.recipebook",
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.likahomik.recipebook"
+      "package": "com.likahomik.recipebook",
+      "runtimeVersion": "1.0.0"
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -40,6 +44,9 @@
     },
     "plugins": [
       "expo-font"
-    ]
+    ],
+    "updates": {
+      "url": "https://u.expo.dev/a3970558-844d-4372-8179-b45f9665affa"
+    }
   }
 }

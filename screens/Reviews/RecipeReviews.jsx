@@ -6,6 +6,13 @@ import RatingForm from './RatingForm';
 import ReviewItem from './ReviewItem';
 import {useUser} from "../../context/UserContext";
 
+const profanityList = ['bad', 'word', 'example']; 
+
+const containsProfanity = (text) => {
+    const words = text.toLowerCase().split(/\s+/);
+    return words.some(word => profanityList.includes(word));
+};
+
 export function RecipeReviews({ recipeId, onReviewAdded }) {
     const [reviews, setReviews] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -69,6 +76,10 @@ export function RecipeReviews({ recipeId, onReviewAdded }) {
         if (!user?.id) {
             console.error('No user ID available');
             return;
+        }
+
+        if (containsProfanity(comment)) {
+            throw new Error('Обнаружены нецензурные выражения');
         }
 
         console.log('Submitting review with user ID:', user.id);

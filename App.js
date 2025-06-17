@@ -8,12 +8,13 @@ console.log('App.js: started');
 
 export default function App() {
     const colorScheme = useColorScheme();
-  return (
-      <UserProvider>
-          <NavigationContainer>
-          <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
-              <Navigation/>
-          </NavigationContainer>
-      </UserProvider>
-  );
+
+    return (
+        <NavigationContainer fallback={<StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />}>
+            <UserProvider>
+                <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
+                <Navigation/>
+            </UserProvider>
+        </NavigationContainer>
+    );
 }
